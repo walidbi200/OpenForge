@@ -128,6 +128,19 @@ def _extract_json(text: str) -> str:
     return text
 
 
+def _safe_join(repo_root: Path, rel: str) -> Path:
+    """Safely join a relative path to a repo root, preventing traversal out of bounds."""
+    if Path(rel).is_absolute():
+        raise CoderError(f"Absolute paths are not allowed: {rel!r}")
+    if ".." in Path(rel).parts:
+        raise CoderError(f"Parent directory traversal ('..') is not allowed: {rel!r}")
+    target = (repo_root / rel).resolve()
+    root = repo_root.resolve()
+    if not target.is_relative_to(root):
+        raise CoderError(f"Refusing to write outside the repo: {rel!r}")
+    return target
+
+
 def _slugify(text: str, max_len: int = 30) -> str:
     """Turn arbitrary text into a short branch-name-safe slug."""
     slug = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
@@ -176,6 +189,10 @@ class CodingAgent:
         repo_path = Path(repo_context.source_path)
         branch = _branch_name(issue_number, plan.goal)
 
+        # 0. Validate plan.files_to_modify up front (fail fast)
+        for rel in plan.files_to_modify:
+            _safe_join(repo_path, rel)
+
         # 1. Create and check out a new branch — deterministic, no LLM.
         self._git_create_branch(repo_path, branch)
 
@@ -206,17 +223,26 @@ class CodingAgent:
                 )
                 unexpected.append(edit.path)
                 continue
-            target = repo_path / edit.path
+            target = _safe_join(repo_path, edit.path)
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(edit.new_content, encoding="utf-8")
             written.append(edit)
             logger.info("Wrote %s (%d bytes)", edit.path, len(edit.new_content))
 
+        # Stage written files so creations show up in diff
+        if written:
+            subprocess.run(
+                ["git", "add", "--"] + [e.path for e in written],
+                cwd=repo_path,
+                capture_output=True,
+                check=True,
+            )
+
         # 6. Capture git diff and detect actual changed files.
         logger.info("Running git diff...")
-        git_diff = self._git_diff(repo_path)
+        git_diff = self._git_diff(repo_path, staged=True)
         logger.info("Running git diff --name-only...")
-        changed_names = self._git_diff_name_only(repo_path)
+        changed_names = self._git_diff_name_only(repo_path, staged=True)
 
         # Flag files that git says changed but aren't in the plan.
         for changed in changed_names:
@@ -260,7 +286,7 @@ class CodingAgent:
         """Read current content of each path.  None = file doesn't exist."""
         result: dict[str, str | None] = {}
         for rel in paths:
-            abs_path = base / rel
+            abs_path = _safe_join(base, rel)
             if not abs_path.exists():
                 result[rel] = None
                 logger.debug("File does not exist (will be created): %s", rel)
@@ -413,20 +439,26 @@ class CodingAgent:
             )
         logger.debug("Checked out new branch: %s", branch)
 
-    def _git_diff(self, repo_path: Path) -> str:
+    def _git_diff(self, repo_path: Path, staged: bool = False) -> str:
         """Capture full unified diff of all staged+unstaged changes."""
+        args = ["git", "diff"]
+        if staged:
+            args.append("--staged")
         result = subprocess.run(
-            ["git", "diff"],
+            args,
             cwd=repo_path,
             capture_output=True,
             text=True,
         )
         return result.stdout
 
-    def _git_diff_name_only(self, repo_path: Path) -> list[str]:
+    def _git_diff_name_only(self, repo_path: Path, staged: bool = False) -> list[str]:
         """Return list of files changed according to git diff."""
+        args = ["git", "diff", "--name-only"]
+        if staged:
+            args.append("--staged")
         result = subprocess.run(
-            ["git", "diff", "--name-only"],
+            args,
             cwd=repo_path,
             capture_output=True,
             text=True,

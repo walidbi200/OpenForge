@@ -568,6 +568,11 @@ def code(
         "--run",
         help="Run ID whose repository.json and plan.json to use.",
     ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Force execution even if the plan requires human sign-off.",
+    ),
 ) -> None:
     """Generate code from an ImplementationPlan and create a local git branch → code.json."""
     settings = get_settings()
@@ -606,6 +611,15 @@ def code(
     plan_data = raw_plan.get("data", raw_plan)
     impl_plan = ImplementationPlan(**plan_data)
     console.print(f"[green]✓[/green] Loaded plan from runs/{run}/")
+
+    if impl_plan.requires_human and not force:
+        console.print(
+            "[bold red]Error:[/bold red] The plan requires human sign-off before coding.\n"
+            "Please review the plan.json manually and use --force to proceed."
+        )
+        raise typer.Exit(code=1)
+    elif impl_plan.requires_human and force:
+        logger.warning("Proceeding with requires_human=True plan due to --force flag.")
 
     # --- Derive issue number from plan provenance (best-effort) -------------
     issue_number: int | None = None

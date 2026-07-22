@@ -245,8 +245,8 @@ class TestImplement:
             result = agent.implement(repo, plan, issue_number=2)
 
         assert (tmp_path / "new_module.py").exists()
-        # git diff only shows tracked changes; new file is untracked → check file
         assert (tmp_path / "new_module.py").read_text() == "# new\n"
+        assert "new_module.py" in result.git_diff
 
     def test_file_outside_plan_is_flagged_not_written(self, tmp_path: Path):
         """LLM returns a path not in plan.files_to_modify → flagged, not written."""
@@ -288,6 +288,23 @@ class TestImplement:
         with pytest.raises(CoderError, match="exceeds"):
             # No patch needed — CoderError fires before httpx.post is reached.
             agent.implement(repo, plan)
+
+    def test_path_containment_and_traversal_are_rejected(self, tmp_path: Path):
+        """A plan with malicious paths raises CoderError and does not write."""
+        _git_init(tmp_path)
+        repo = _make_repo(tmp_path)
+        
+        malicious_paths = [
+            "../../etc/evil.txt",
+            "/tmp/abs.txt",
+            "a/../../escape.txt",
+        ]
+        
+        for bad_path in malicious_paths:
+            plan = _make_plan([bad_path])
+            agent = _make_agent()
+            with pytest.raises(CoderError, match="not allowed|outside the repo"):
+                agent.implement(repo, plan, issue_number=42)
 
 
 # ---------------------------------------------------------------------------
