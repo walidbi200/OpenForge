@@ -308,6 +308,41 @@ class TestImplement:
 
 
 # ---------------------------------------------------------------------------
+# Test runner logic
+# ---------------------------------------------------------------------------
+
+
+class TestRunTests:
+    def test_run_tests_rejects_unsafe_commands(self, tmp_path: Path):
+        agent = _make_agent()
+        results = agent._run_tests(
+            ["echo hi; touch /tmp/pwned", "pytest tests/"],
+            cwd=tmp_path
+        )
+        assert len(results) == 2
+        
+        # The first command should be rejected because echo is not in allowlist
+        assert results[0].returncode == 1
+        assert "REJECTED" in results[0].stderr
+        assert "allowlist" in results[0].stderr
+
+        # The second command runs (fails gracefully with exit code from pytest, but wasn't rejected)
+        # However, pytest might not exist in the mock environment, so it might return 1 with "not found"
+        # The key is that it didn't say "REJECTED"
+        assert "REJECTED" not in results[1].stderr
+
+    def test_run_tests_rejects_shlex_error(self, tmp_path: Path):
+        agent = _make_agent()
+        results = agent._run_tests(
+            ['pytest "unclosed string'],
+            cwd=tmp_path
+        )
+        assert len(results) == 1
+        assert results[0].returncode == 1
+        assert "Malformed" in results[0].stderr
+
+
+# ---------------------------------------------------------------------------
 # Init guard
 # ---------------------------------------------------------------------------
 

@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import shlex
 import subprocess
 import sys
 from dataclasses import dataclass, field
@@ -41,6 +42,7 @@ _CODER_PROMPT_PATH = (
 # for a single source file that can be safely sent and rewritten.
 _MAX_FILE_BYTES = 100 * 1024  # 100 KB
 
+_ALLOWED_TEST_RUNNERS = {"pytest", "python", "npm", "pnpm", "yarn", "bun", "cargo", "go"}
 
 # ---------------------------------------------------------------------------
 # Result types
@@ -477,9 +479,37 @@ class CodingAgent:
         for cmd in commands:
             logger.debug("Running tests: %s", cmd)
             try:
+                args = shlex.split(cmd)
+            except ValueError as exc:
+                logger.warning("Test command rejected (shlex parse error): %s — %s", cmd, exc)
+                results.append(
+                    TestResult(
+                        command=cmd,
+                        returncode=1,
+                        stdout="",
+                        stderr=f"REJECTED: Malformed command ({exc})",
+                    )
+                )
+                continue
+
+            if not args:
+                continue
+
+            if args[0] not in _ALLOWED_TEST_RUNNERS:
+                logger.warning("Test command rejected (not in allowlist): %s", cmd)
+                results.append(
+                    TestResult(
+                        command=cmd,
+                        returncode=1,
+                        stdout="",
+                        stderr=f"REJECTED: Test runner '{args[0]}' is not in the allowlist ({', '.join(sorted(_ALLOWED_TEST_RUNNERS))}).",
+                    )
+                )
+                continue
+
+            try:
                 proc = subprocess.run(
-                    cmd,
-                    shell=True,
+                    args,
                     cwd=cwd,
                     capture_output=True,
                     text=True,

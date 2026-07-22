@@ -132,7 +132,34 @@ class PlannerAgent:
         snippets = self._read_mentioned_files(repo_context, issue_facts)
         prompt = self._render_prompt(repo_context, issue_facts, snippets)
         raw_content = self._call_llm(prompt, timeout=timeout)
-        return self._parse_plan(raw_content)
+        plan = self._parse_plan(raw_content)
+
+        # Validate paths
+        valid_paths = []
+        if repo_context and repo_context.source_path:
+            repo_root = Path(repo_context.source_path).resolve()
+            for rel in plan.files_to_modify:
+                p = Path(rel)
+                if p.is_absolute() or ".." in p.parts:
+                    logger.warning("Planner dropped invalid path traversal attempt: %s", rel)
+                    continue
+                target = (repo_root / rel).resolve()
+                if not target.is_relative_to(repo_root):
+                    logger.warning("Planner dropped path outside repo root: %s", rel)
+                    continue
+                valid_paths.append(rel)
+        else:
+            for rel in plan.files_to_modify:
+                p = Path(rel)
+                if p.is_absolute() or ".." in p.parts:
+                    logger.warning("Planner dropped invalid path traversal attempt: %s", rel)
+                    continue
+                valid_paths.append(rel)
+
+        if valid_paths != plan.files_to_modify:
+            plan = plan.model_copy(update={"files_to_modify": valid_paths})
+
+        return plan
 
     # ------------------------------------------------------------------
     # File reading (deterministic — no LLM)
