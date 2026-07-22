@@ -22,6 +22,8 @@ import httpx
 
 from openforge.config import Settings
 from openforge.models import ImplementationPlan, IssueFacts, RepositoryContext
+from openforge.services.openrouter import call_llm
+from openforge.utils import extract_json
 
 logger = logging.getLogger(__name__)
 
@@ -69,25 +71,6 @@ class _FileSnippet:
 # ---------------------------------------------------------------------------
 
 
-def _extract_json(text: str) -> str:
-    """Extract the first JSON object from a string that may contain prose.
-
-    The model is instructed to return only JSON, but may occasionally wrap it
-    in a markdown code fence.  This function handles both cases.
-    """
-    # Try a fenced ```json ... ``` block first.
-    fenced = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
-    if fenced:
-        return fenced.group(1)
-
-    # Fall back to the first { ... } spanning the whole response.
-    brace_match = re.search(r"(\{.*\})", text, re.DOTALL)
-    if brace_match:
-        return brace_match.group(1)
-
-    return text  # let json.loads raise a descriptive error
-
-
 def _is_trivial_risk(entry: str) -> bool:
     """Return True for placeholder/filler risk entries that carry no information."""
     return bool(_TRIVIAL_RISK_PATTERN.match(entry))
@@ -131,7 +114,10 @@ class PlannerAgent:
         """Render the planner prompt and return a validated ImplementationPlan."""
         snippets = self._read_mentioned_files(repo_context, issue_facts)
         prompt = self._render_prompt(repo_context, issue_facts, snippets)
-        raw_content = self._call_llm(prompt, timeout=timeout)
+        try:
+            raw_content = call_llm(prompt, self._settings, timeout=timeout)
+        except RuntimeError as exc:
+            raise PlannerError(str(exc)) from exc
         plan = self._parse_plan(raw_content)
 
         # Validate paths
@@ -293,35 +279,6 @@ class PlannerAgent:
                 )
         return "\n\n".join(parts)
 
-    # ------------------------------------------------------------------
-    # LLM call
-    # ------------------------------------------------------------------
-
-    def _call_llm(self, prompt: str, *, timeout: float) -> str:
-        """POST to OpenRouter and return the raw response text."""
-        try:
-            response = httpx.post(
-                _OPENROUTER_URL,
-                headers={
-                    "Authorization": f"Bearer {self._settings.openrouter_api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": self._settings.openrouter_model,
-                    "messages": [{"role": "user", "content": prompt}],
-                },
-                timeout=timeout,
-            )
-            response.raise_for_status()
-            data = response.json()
-            return data["choices"][0]["message"]["content"].strip()
-        except httpx.HTTPStatusError as exc:
-            raise PlannerError(
-                f"OpenRouter returned HTTP {exc.response.status_code}: "
-                f"{exc.response.text[:300]}"
-            ) from exc
-        except (httpx.HTTPError, KeyError, IndexError) as exc:
-            raise PlannerError(f"OpenRouter call failed: {exc}") from exc
 
     # ------------------------------------------------------------------
     # JSON parsing + post-processing
@@ -335,7 +292,7 @@ class PlannerAgent:
         reliably keep two generated fields consistent; we enforce it
         deterministically here.
         """
-        json_str = _extract_json(raw)
+        json_str = extract_json(raw)
         try:
             payload = json.loads(json_str)
         except json.JSONDecodeError as exc:

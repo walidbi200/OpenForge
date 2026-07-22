@@ -23,6 +23,35 @@ _OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 _PROMPT_PATH = Path(__file__).resolve().parent.parent.parent / "prompts" / "repo_summary.md"
 
 
+def call_llm(prompt: str, settings: Settings, timeout: float = 60.0, **kwargs) -> str:
+    """POST to OpenRouter and return the raw response text."""
+    try:
+        payload = {
+            "model": settings.openrouter_model,
+            "messages": [{"role": "user", "content": prompt}],
+        }
+        payload.update(kwargs)
+        
+        response = httpx.post(
+            _OPENROUTER_URL,
+            headers={
+                "Authorization": f"Bearer {settings.openrouter_api_key}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+            timeout=timeout,
+        )
+        response.raise_for_status()
+        data = response.json()
+        return data["choices"][0]["message"]["content"].strip()
+    except httpx.HTTPStatusError as exc:
+        raise RuntimeError(
+            f"OpenRouter returned HTTP {exc.response.status_code}: {exc.response.text[:300]}"
+        ) from exc
+    except (httpx.HTTPError, KeyError, IndexError) as exc:
+        raise RuntimeError(f"OpenRouter call failed: {exc}") from exc
+
+
 def summarize_conventions(
     context: RepositoryContext, settings: Settings, timeout: float = 30.0
 ) -> str | None:

@@ -28,6 +28,8 @@ import httpx
 
 from openforge.config import Settings
 from openforge.models import ImplementationPlan, RepositoryContext
+from openforge.services.openrouter import call_llm
+from openforge.utils import extract_json
 
 logger = logging.getLogger(__name__)
 
@@ -119,17 +121,6 @@ class CoderError(RuntimeError):
 # ---------------------------------------------------------------------------
 
 
-def _extract_json(text: str) -> str:
-    """Extract the first JSON object from text that may contain markdown fences."""
-    fenced = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
-    if fenced:
-        return fenced.group(1)
-    brace_match = re.search(r"(\{.*\})", text, re.DOTALL)
-    if brace_match:
-        return brace_match.group(1)
-    return text
-
-
 def _safe_join(repo_root: Path, rel: str) -> Path:
     """Safely join a relative path to a repo root, preventing traversal out of bounds."""
     if Path(rel).is_absolute():
@@ -150,7 +141,7 @@ def _slugify(text: str, max_len: int = 30) -> str:
 
 
 def _branch_name(issue_number: int | None, goal: str) -> str:
-    slug = _slugify(goal)
+    slug = _slugify(goal) or "change"
     if issue_number:
         return f"openforge/{issue_number}-{slug}"
     return f"openforge/{slug}"
@@ -203,8 +194,15 @@ class CodingAgent:
 
         # 3. Build prompt and call LLM.
         prompt = self._render_prompt(repo_context, plan, current_files)
-        logger.info("Calling LLM...")
-        raw = self._call_llm(prompt, timeout=timeout)
+        try:
+            raw = call_llm(
+                prompt,
+                self._settings,
+                timeout=timeout,
+                max_tokens=16000,
+            )
+        except RuntimeError as exc:
+            raise CoderError(str(exc)) from exc
         logger.info("LLM returned %d bytes", len(raw))
 
         # 4. Parse LLM response.
@@ -343,41 +341,7 @@ class CodingAgent:
                 parts.append(f"### {path}\n```\n{content}\n```")
         return "\n\n".join(parts)
 
-    # ------------------------------------------------------------------
-    # LLM call (same pattern as planner.py)
-    # ------------------------------------------------------------------
 
-    def _call_llm(self, prompt: str, *, timeout: float) -> str:
-        try:
-            response = httpx.post(
-                _OPENROUTER_URL,
-                headers={
-                    "Authorization": f"Bearer {self._settings.openrouter_api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": self._settings.openrouter_model,
-                    "messages": [{"role": "user", "content": prompt}],
-                    # Request maximum possible tokens for full-file rewrites.
-                    "max_tokens": 16000,
-                },
-                timeout=timeout,
-            )
-            response.raise_for_status()
-            data = response.json()
-            message = data.get("choices", [{}])[0].get("message", {})
-            content = message.get("content")
-            if content is None:
-                # Some API errors or safety stops return None content.
-                raise CoderError(f"OpenRouter returned empty content. Full response: {data}")
-            return content.strip()
-        except httpx.HTTPStatusError as exc:
-            raise CoderError(
-                f"OpenRouter returned HTTP {exc.response.status_code}: "
-                f"{exc.response.text[:300]}"
-            ) from exc
-        except (httpx.HTTPError, KeyError, IndexError) as exc:
-            raise CoderError(f"OpenRouter call failed: {exc}") from exc
 
     # ------------------------------------------------------------------
     # Response parsing
@@ -385,7 +349,7 @@ class CodingAgent:
 
     def _parse_response(self, raw: str, allowed_paths: list[str]) -> list[FileEdit]:
         """Parse the LLM JSON response into a list of FileEdit objects."""
-        json_str = _extract_json(raw)
+        json_str = extract_json(raw)
         try:
             payload = json.loads(json_str)
         except json.JSONDecodeError as exc:
@@ -416,7 +380,7 @@ class CodingAgent:
     @staticmethod
     def _parse_summary(raw: str) -> str:
         """Extract the summary field from the raw LLM response, best-effort."""
-        json_str = _extract_json(raw)
+        json_str = extract_json(raw)
         try:
             payload = json.loads(json_str)
             return str(payload.get("summary", ""))
@@ -427,19 +391,30 @@ class CodingAgent:
     # Deterministic git operations
     # ------------------------------------------------------------------
 
-    def _git_create_branch(self, repo_path: Path, branch: str) -> None:
-        """Create and check out a new local branch. Fails loudly if it exists."""
+    def _git_create_branch(self, cwd: Path, branch_name: str) -> None:
+        """Create and checkout a new branch."""
+        # Ensure working tree is clean before branching
+        status = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+        )
+        if status.stdout.strip():
+            logger.warning("Working tree not clean before creating branch %r", branch_name)
+
+        logger.debug("Creating branch: %s", branch_name)
         result = subprocess.run(
-            ["git", "checkout", "-b", branch],
-            cwd=repo_path,
+            ["git", "checkout", "-b", branch_name],
+            cwd=cwd,
             capture_output=True,
             text=True,
         )
         if result.returncode != 0:
             raise CoderError(
-                f"Failed to create branch {branch!r}:\n{result.stderr.strip()}"
+                f"Failed to create branch {branch_name!r}:\n{result.stderr.strip()}"
             )
-        logger.debug("Checked out new branch: %s", branch)
+        logger.debug("Checked out new branch: %s", branch_name)
 
     def _git_diff(self, repo_path: Path, staged: bool = False) -> str:
         """Capture full unified diff of all staged+unstaged changes."""

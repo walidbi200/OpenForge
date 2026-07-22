@@ -30,3 +30,20 @@ def parse_github_url(url: str) -> tuple[str, str]:
 def slugify_repo_label(owner: str, repo: str) -> str:
     """Filesystem-safe directory name for a cloned repo, e.g. 'psf-requests'."""
     return f"{owner}-{repo}".lower()
+
+
+def extract_json(text: str) -> str:
+    """Extract the first JSON object from a string that may contain prose.
+
+    The model is instructed to return only JSON, but may occasionally wrap it
+    in a markdown code fence. This function handles both cases.
+    """
+    fenced = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
+    if fenced:
+        return fenced.group(1)
+
+    brace_match = re.search(r"(\{.*\})", text, re.DOTALL)
+    if brace_match:
+        return brace_match.group(1)
+
+    return text

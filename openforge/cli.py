@@ -32,6 +32,7 @@ from openforge.models import (
     RunManifest,
     SourceArtifact,
     compute_sha256,
+    verify_artifact_file,
 )
 from openforge.services.github import GitHubService
 from openforge.services.issue_extractor import IssueExtractor
@@ -178,8 +179,10 @@ def inspect(
 # ---------------------------------------------------------------------------
 
 
-def _load_repository_context(repo_json_path: Path) -> RepositoryContext:
+def _load_repository_context(repo_json_path: Path, no_verify: bool = False) -> RepositoryContext:
     """Load RepositoryContext from json, handling both raw and Artifact-wrapped JSON."""
+    if not no_verify:
+        verify_artifact_file(repo_json_path)
     raw = json.loads(repo_json_path.read_text())
     if "data" in raw and isinstance(raw["data"], dict) and "repo" in raw["data"]:
         return RepositoryContext(**raw["data"])
@@ -196,6 +199,11 @@ def analyze_issue(
         None,
         "--run",
         help="Existing run ID whose repository.json to reuse (skips re-cloning).",
+    ),
+    no_verify: bool = typer.Option(
+        False,
+        "--no-verify",
+        help="Skip artifact checksum verification.",
     ),
 ) -> None:
     """Fetch a GitHub issue and extract structured facts → issue_facts.json."""
@@ -226,7 +234,11 @@ def analyze_issue(
                 "Run `openforge inspect` first, or omit --run."
             )
             raise typer.Exit(code=1)
-        repo_context = _load_repository_context(repo_json_path)
+        try:
+            repo_context = _load_repository_context(repo_json_path, no_verify=no_verify)
+        except ValueError as exc:
+            console.print(f"[bold red]Verification Error:[/bold red] {exc}")
+            raise typer.Exit(code=1)
         rich_source_artifacts.append(
             SourceArtifact(
                 artifact="RepositoryContext",
@@ -361,6 +373,11 @@ def plan(
         "--run",
         help="Existing run ID whose repository.json and issue_facts.json to reuse.",
     ),
+    no_verify: bool = typer.Option(
+        False,
+        "--no-verify",
+        help="Skip artifact checksum verification.",
+    ),
 ) -> None:
     """Generate an ImplementationPlan for a GitHub issue → plan.json."""
     settings = get_settings()
@@ -397,7 +414,11 @@ def plan(
         facts_json_path = run_dir / "issue_facts.json"
 
         if repo_json_path.exists():
-            repo_context = _load_repository_context(repo_json_path)
+            try:
+                repo_context = _load_repository_context(repo_json_path, no_verify=no_verify)
+            except ValueError as exc:
+                console.print(f"[bold red]Verification Error:[/bold red] {exc}")
+                raise typer.Exit(code=1)
             rich_source_artifacts.append(
                 SourceArtifact(
                     artifact="RepositoryContext",
@@ -414,6 +435,12 @@ def plan(
             )
 
         if facts_json_path.exists():
+            if not no_verify:
+                try:
+                    verify_artifact_file(facts_json_path)
+                except ValueError as exc:
+                    console.print(f"[bold red]Verification Error:[/bold red] {exc}")
+                    raise typer.Exit(code=1)
             raw = json.loads(facts_json_path.read_text())
             facts_data = raw.get("data", raw)
             issue_facts = IssueFacts(**facts_data)
@@ -573,6 +600,11 @@ def code(
         "--force",
         help="Force execution even if the plan requires human sign-off.",
     ),
+    no_verify: bool = typer.Option(
+        False,
+        "--no-verify",
+        help="Skip artifact checksum verification.",
+    ),
 ) -> None:
     """Generate code from an ImplementationPlan and create a local git branch → code.json."""
     settings = get_settings()
@@ -596,7 +628,11 @@ def code(
             "Run `openforge inspect` or `openforge plan` first."
         )
         raise typer.Exit(code=1)
-    repo_context = _load_repository_context(repo_json_path)
+    try:
+        repo_context = _load_repository_context(repo_json_path, no_verify=no_verify)
+    except ValueError as exc:
+        console.print(f"[bold red]Verification Error:[/bold red] {exc}")
+        raise typer.Exit(code=1)
     console.print(f"[green]✓[/green] Loaded repository context from runs/{run}/")
 
     # --- Load plan.json -----------------------------------------------------
@@ -607,6 +643,14 @@ def code(
             "Run `openforge plan` first."
         )
         raise typer.Exit(code=1)
+    
+    if not no_verify:
+        try:
+            verify_artifact_file(plan_json_path)
+        except ValueError as exc:
+            console.print(f"[bold red]Verification Error:[/bold red] {exc}")
+            raise typer.Exit(code=1)
+
     raw_plan = json.loads(plan_json_path.read_text())
     plan_data = raw_plan.get("data", raw_plan)
     impl_plan = ImplementationPlan(**plan_data)
@@ -835,6 +879,10 @@ def _print_issue_facts(facts: IssueFacts) -> None:
 
 
 def main() -> None:
+    import sys
+    if sys.version_info < (3, 11):
+        print("Error: OpenForge requires Python 3.11+", file=sys.stderr)
+        sys.exit(1)
     app()
 
 

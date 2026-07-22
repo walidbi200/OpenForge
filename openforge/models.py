@@ -19,6 +19,7 @@ from __future__ import annotations
 import hashlib
 import json
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Generic, Literal, TypeVar
 
 from pydantic import BaseModel, Field
@@ -104,6 +105,25 @@ class Artifact(BaseModel, Generic[T]):
 
 # Backward compatibility alias
 ArtifactEnvelope = Artifact
+
+
+def verify_artifact_file(path: Path) -> None:
+    """Verify the integrity of a saved artifact file."""
+    raw_json = path.read_text(encoding="utf-8")
+    payload = json.loads(raw_json)
+    stored_checksum = payload.get("data_checksum")
+    if not stored_checksum:
+        raise ValueError(f"No data_checksum found in artifact {path}")
+    
+    data = payload.get("data", {})
+    normalized = json.dumps(data, sort_keys=True)
+    expected_checksum = "sha256:" + hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+    
+    if stored_checksum != expected_checksum:
+        raise ValueError(
+            f"Checksum mismatch for {path}: expected {expected_checksum}, got {stored_checksum}. "
+            "The artifact has been tampered with or corrupted."
+        )
 
 
 class RunManifest(BaseModel):

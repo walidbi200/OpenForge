@@ -21,9 +21,9 @@ import pytest
 from openforge.agents.planner import (
     PlannerAgent,
     PlannerError,
-    _extract_json,
     _risks_are_substantive,
 )
+from openforge.utils import extract_json
 from openforge.config import Settings
 from openforge.models import ImplementationPlan, IssueFacts, RepositoryContext
 
@@ -107,27 +107,27 @@ def _repo_for(path: Path) -> RepositoryContext:
 class TestExtractJson:
     def test_plain_json_object(self):
         raw = '{"goal": "Fix it", "requires_human": false}'
-        assert _extract_json(raw) == raw
+        assert extract_json(raw) == raw
 
     def test_fenced_json_block(self):
         raw = '```json\n{"goal": "Fix it"}\n```'
-        result = _extract_json(raw)
+        result = extract_json(raw)
         assert result == '{"goal": "Fix it"}'
 
     def test_fenced_block_no_language_tag(self):
         raw = "```\n{\"goal\": \"Fix it\"}\n```"
-        result = _extract_json(raw)
+        result = extract_json(raw)
         assert result == '{"goal": "Fix it"}'
 
     def test_json_embedded_in_prose(self):
         raw = 'Here is the plan:\n{"goal": "Fix it", "requires_human": false}\nDone.'
-        result = _extract_json(raw)
+        result = extract_json(raw)
         parsed = json.loads(result)
         assert parsed["goal"] == "Fix it"
 
     def test_returns_raw_when_no_braces(self):
         raw = "Sorry, I cannot help."
-        result = _extract_json(raw)
+        result = extract_json(raw)
         assert result == raw
 
 

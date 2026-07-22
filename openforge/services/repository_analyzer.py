@@ -143,18 +143,21 @@ class RepositoryAnalyzer:
 
     def _detect_language(self, path: Path) -> tuple[str | None, dict[str, str]]:
         evidence: dict[str, str] = {}
-        found: list[str] = []
+        primary: str | None = None
+        primary_marker: str | None = None
+        
         for marker, lang in _LANGUAGE_MARKERS:
             if (path / marker).exists():
-                found.append(lang)
+                if primary is None:
+                    primary = lang
+                    primary_marker = marker
                 evidence.setdefault("language_candidates", "")
                 evidence["language_candidates"] += f"{marker} -> {lang}; "
 
-        if not found:
+        if not primary:
             return None, evidence
 
-        primary = found[0]
-        evidence["language"] = f"found {_LANGUAGE_MARKERS[[l for _, l in _LANGUAGE_MARKERS].index(primary)][0]}"
+        evidence["language"] = f"found {primary_marker}"
 
         # Upgrade JavaScript -> TypeScript if there's real evidence of it.
         if primary == "JavaScript":

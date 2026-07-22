@@ -22,9 +22,9 @@ from openforge.agents.coder import (
     CodeResult,
     FileEdit,
     _branch_name,
-    _extract_json,
     _slugify,
 )
+from openforge.utils import extract_json
 from openforge.config import Settings
 from openforge.models import ImplementationPlan, RepositoryContext
 
@@ -129,11 +129,11 @@ class TestBranchName:
 class TestExtractJson:
     def test_plain_json(self):
         raw = '{"files": [], "summary": "done"}'
-        assert _extract_json(raw) == raw
+        assert extract_json(raw) == raw
 
     def test_fenced_json(self):
         raw = '```json\n{"files": []}\n```'
-        assert _extract_json(raw) == '{"files": []}'
+        assert extract_json(raw) == '{"files": []}'
 
 
 # ---------------------------------------------------------------------------
