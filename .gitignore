@@ -1,0 +1,25 @@
+# Secrets
+.env
+
+# Cloned repos and generated repo.json files live here — never commit someone
+# else's repository into this one.
+workspace/*
+!workspace/.gitkeep
+
+# Run artifacts (repository.json, summary.md, logs.txt) are ephemeral.
+runs/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
