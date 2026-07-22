@@ -103,7 +103,12 @@ def inspect(
         help="Skip the optional conventions summary even if an API key is set.",
     ),
 ) -> None:
-    """Run the RepositoryAnalyzer against TARGET and print what it found."""
+    """Clone (if URL) and analyze a repository → repository.json.
+    
+    This implements Phase 1 of the OpenForge pipeline (Repository Analysis).
+    It produces a RepositoryContext artifact containing deterministic facts 
+    about the repository's language, framework, and tooling.
+    """
     settings = get_settings()
     configure_logging(settings.log_level)
 
@@ -166,7 +171,7 @@ def inspect(
     _update_manifest(run_dir, target, [p.name for p in written])
 
     # ---- print the runs/ tree ----------------------------------------------
-    written_files = sorted(p for p in run_dir.iterdir() if p.is_file())
+    written_files = sorted((p for p in run_dir.iterdir() if p.is_file()), key=lambda p: p.name)
     console.print(f"\n[bold]runs/[/bold]")
     console.print(f"└── [cyan]{run_id}/[/cyan]")
     for i, p in enumerate(written_files):
@@ -206,7 +211,12 @@ def analyze_issue(
         help="Skip artifact checksum verification.",
     ),
 ) -> None:
-    """Fetch a GitHub issue and extract structured facts → issue_facts.json."""
+    """Fetch a GitHub issue and extract structured facts → issue_facts.json.
+    
+    This implements Phase 2 of the OpenForge pipeline (Issue Extraction).
+    It produces an IssueFacts artifact containing deterministic facts 
+    about the issue, such as mentioned files, checklists, and tracebacks.
+    """
     settings = get_settings()
     configure_logging(settings.log_level)
 
@@ -293,7 +303,7 @@ def analyze_issue(
     with console.status(f"[bold cyan]Fetching issue #{issue_number}..."):
         try:
             raw_issue = github.fetch_issue(owner, repo_name, issue_number)
-        except (PermissionError, FileNotFoundError, RuntimeError) as exc:
+        except (PermissionError, RuntimeError) as exc:
             console.print(f"[bold red]Error:[/bold red] {exc}")
             raise typer.Exit(code=1)
 
@@ -349,7 +359,7 @@ def analyze_issue(
     _print_issue_facts(facts)
 
     # 9. Print runs/ tree.
-    written_files = sorted(p for p in run_dir.iterdir() if p.is_file())
+    written_files = sorted((p for p in run_dir.iterdir() if p.is_file()), key=lambda p: p.name)
     console.print(f"\n[bold]runs/[/bold]")
     console.print(f"└── [cyan]{run_dir.name}/[/cyan]")
     for i, p in enumerate(written_files):
@@ -379,7 +389,12 @@ def plan(
         help="Skip artifact checksum verification.",
     ),
 ) -> None:
-    """Generate an ImplementationPlan for a GitHub issue → plan.json."""
+    """Generate an ImplementationPlan for a GitHub issue → plan.json.
+    
+    This implements Phase 3 of the OpenForge pipeline (Planning).
+    It invokes the PlannerAgent to reason over the repository context and
+    issue facts, producing a structured ImplementationPlan artifact.
+    """
     settings = get_settings()
     configure_logging(settings.log_level)
 
@@ -503,7 +518,7 @@ def plan(
         with console.status(f"[bold cyan]Fetching issue #{issue_number}..."):
             try:
                 raw_issue = github.fetch_issue(owner, repo_name, issue_number)
-            except (PermissionError, FileNotFoundError, RuntimeError) as exc:
+            except (PermissionError, RuntimeError) as exc:
                 console.print(f"[bold red]Error:[/bold red] {exc}")
                 raise typer.Exit(code=1)
 
@@ -575,7 +590,7 @@ def plan(
     _print_plan(impl_plan)
 
     # --- Print runs/ tree ---------------------------------------------------
-    written_files = sorted(p for p in run_dir.iterdir() if p.is_file())
+    written_files = sorted((p for p in run_dir.iterdir() if p.is_file()), key=lambda p: p.name)
     console.print(f"\n[bold]runs/[/bold]")
     console.print(f"└── [cyan]{run_dir.name}/[/cyan]")
     for i, p in enumerate(written_files):
@@ -606,7 +621,12 @@ def code(
         help="Skip artifact checksum verification.",
     ),
 ) -> None:
-    """Generate code from an ImplementationPlan and create a local git branch → code.json."""
+    """Generate code from an ImplementationPlan and create a local git branch → code.json.
+    
+    This implements Phase 4 of the OpenForge pipeline (Coding).
+    It invokes the CodingAgent to implement the plan, write files,
+    run tests, and create a reviewable git branch.
+    """
     settings = get_settings()
     configure_logging(settings.log_level)
 
@@ -722,7 +742,7 @@ def code(
     _print_code_result(result)
 
     # --- Print runs/ tree ---------------------------------------------------
-    written_files = sorted(p for p in run_dir.iterdir() if p.is_file())
+    written_files = sorted((p for p in run_dir.iterdir() if p.is_file()), key=lambda p: p.name)
     console.print(f"\n[bold]runs/[/bold]")
     console.print(f"└── [cyan]{run}/[/cyan]")
     for i, p in enumerate(written_files):

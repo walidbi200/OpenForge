@@ -60,8 +60,7 @@ class GitHubService:
 
         Raises:
             PermissionError  – 403 (rate-limited or private repo without token)
-            FileNotFoundError – 404 (issue / repo not found)
-            RuntimeError     – any other HTTP error
+            RuntimeError     – any other HTTP error (including 404)
         """
         url = f"{_API_BASE}/repos/{owner}/{repo}/issues/{number}"
         headers = {
@@ -82,11 +81,7 @@ class GitHubService:
                 f"GitHub API returned 403 for {owner}/{repo}#{number}. "
                 "Set GITHUB_TOKEN to avoid rate limits or access private repos."
             )
-        if response.status_code == 404:
-            raise FileNotFoundError(
-                f"Issue #{number} not found in {owner}/{repo}. "
-                "Check that the repo and issue number are correct."
-            )
+
         if not response.is_success:
             raise RuntimeError(
                 f"GitHub API returned {response.status_code} for "

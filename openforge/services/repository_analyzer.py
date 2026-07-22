@@ -366,8 +366,12 @@ class RepositoryAnalyzer:
         pkg_path = path / "package.json"
         if not pkg_path.exists():
             return None
+        content = pkg_path.read_text(errors="ignore").strip()
+        if not content:
+            return None
         try:
-            return json.loads(pkg_path.read_text(errors="ignore"))
+            data = json.loads(content)
+            return data if isinstance(data, dict) else None
         except json.JSONDecodeError:
             logger.warning("Couldn't parse package.json at %s", pkg_path)
             return None
@@ -375,9 +379,14 @@ class RepositoryAnalyzer:
     def _json_dependency_names(self, json_path: Path) -> set[str]:
         if not json_path.exists():
             return set()
+        content = json_path.read_text(errors="ignore").strip()
+        if not content:
+            return set()
         try:
-            data = json.loads(json_path.read_text(errors="ignore"))
+            data = json.loads(content)
         except json.JSONDecodeError:
+            return set()
+        if not isinstance(data, dict):
             return set()
         return set(data.get("require", {}))
 
