@@ -1,12 +1,12 @@
 # Validation Summary: encode/httpx#1613
 
-- **Run ID**: 2026-07-24T22-43-27
+- **Run ID**: 2026-07-24T23-27-22
 - **Status**: Failed
 - **Exit Code**: 0
-- **Pipeline Duration**: 193.97s
+- **Pipeline Duration**: 150.92s
 - **Provider**: dahl
 - **Model**: moonshotai/Kimi-K2.6
-- **Total Tokens**: 5608
+- **Total Tokens**: 5512
 - **Branch Name**: openforge/1613-add-the-missing-timeout-parame
 - **Files Modified**: 1
 - **JSON Repair Events**: 0
@@ -19,6 +19,6 @@
 
 ## Execution Times
 - **Inspect**: 0.73s
-- **Analyze Issue**: 0.89s
-- **Plan**: 46.99s
-- **Code**: 145.35s
+- **Analyze Issue**: 0.85s
+- **Plan**: 0.68s
+- **Code**: 148.67s

@@ -1,0 +1,21 @@
+diff --git a/scrapy/downloadermiddlewares/httpcompression.py b/scrapy/downloadermiddlewares/httpcompression.py
+index 13a4324..e63cf75 100644
+--- a/scrapy/downloadermiddlewares/httpcompression.py
++++ b/scrapy/downloadermiddlewares/httpcompression.py
+@@ -139,7 +139,6 @@ class HttpCompressionMiddleware:
+                 )
+             if content_encoding:
+                 self._warn_unknown_encoding(response, content_encoding)
+-            response.headers["Content-Encoding"] = content_encoding
+             if self.stats:
+                 self.stats.inc_value(
+                     "httpcompression/response_bytes",
+@@ -155,8 +154,6 @@ class HttpCompressionMiddleware:
+                 # responsetypes guessing is reliable
+                 kwargs["encoding"] = None
+             response = response.replace(cls=respcls, **kwargs)
+-            if not content_encoding:
+-                del response.headers["Content-Encoding"]
+         return response
+ 
+     def _handle_encoding(

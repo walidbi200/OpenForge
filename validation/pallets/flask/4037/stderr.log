@@ -1,8 +1,82 @@
 
 --- CMD: uv run openforge inspect https://github.com/pallets/flask ---
 
---- CMD: uv run openforge analyze-issue https://github.com/pallets/flask/issues/4037 --run 2026-07-24T22-40-14 ---
+--- CMD: uv run openforge analyze-issue https://github.com/pallets/flask/issues/4037 --run 2026-07-24T23-24-55 ---
 
---- CMD: uv run openforge plan https://github.com/pallets/flask/issues/4037 --run 2026-07-24T22-40-14 ---
+--- CMD: uv run openforge plan https://github.com/pallets/flask/issues/4037 --run 2026-07-24T23-24-55 ---
 
---- CMD: uv run openforge code --run 2026-07-24T22-40-14 --force ---
+--- CMD: uv run openforge code --run 2026-07-24T23-24-55 --force ---
+╭───────────────────── Traceback (most recent call last) ──────────────────────╮
+│ /home/zhufan/Downloads/openforge/openforge/cli.py:743 in code                │
+│                                                                              │
+│   740 │   _update_manifest(run_dir, None, ["code.json"])                     │
+│   741 │                                                                      │
+│   742 │   # --- Print result                                                 │
+│       -------------------------------------------------------                │
+│ ❱ 743 │   _print_code_result(result)                                         │
+│   744 │                                                                      │
+│   745 │   # --- Print runs/ tree                                             │
+│       ---------------------------------------------------                    │
+│   746 │   written_files = sorted((p for p in run_dir.iterdir() if            │
+│       p.is_file()), key=lambda p: p.name)                                    │
+│                                                                              │
+│ /home/zhufan/Downloads/openforge/openforge/cli.py:827 in _print_code_result  │
+│                                                                              │
+│   824 │   │   status = "[bold green]PASSED[/bold green]" if tr.passed else   │
+│       "[bold red]FAILED[/bold red]"                                          │
+│   825 │   │   console.print(f"\n[bold]Tests:[/bold] {tr.command}  →          │
+│       {status} (exit {tr.returncode})")                                      │
+│   826 │   │   if tr.stdout:                                                  │
+│ ❱ 827 │   │   │   console.print(tr.stdout[-4000:])                           │
+│   828 │   │   if tr.stderr and not tr.passed:                                │
+│   829 │   │   │   console.print("[dim]stderr:[/dim]")                        │
+│   830 │   │   │   console.print(tr.stderr[-2000:])                           │
+│                                                                              │
+│ /home/zhufan/Downloads/openforge/.venv/lib64/python3.14/site-packages/rich/c │
+│ onsole.py:1705 in print                                                      │
+│                                                                              │
+│   1702 │   │   │   crop = False                                              │
+│   1703 │   │   render_hooks = self._render_hooks[:]                          │
+│   1704 │   │   with self:                                                    │
+│ ❱ 1705 │   │   │   renderables = self._collect_renderables(                  │
+│   1706 │   │   │   │   objects,                                              │
+│   1707 │   │   │   │   sep,                                                  │
+│   1708 │   │   │   │   end,                                                  │
+│                                                                              │
+│ /home/zhufan/Downloads/openforge/.venv/lib64/python3.14/site-packages/rich/c │
+│ onsole.py:1560 in _collect_renderables                                       │
+│                                                                              │
+│   1557 │   │   │   renderable = rich_cast(renderable)                        │
+│   1558 │   │   │   if isinstance(renderable, str):                           │
+│   1559 │   │   │   │   append_text(                                          │
+│ ❱ 1560 │   │   │   │   │   self.render_str(                                  │
+│   1561 │   │   │   │   │   │   renderable,                                   │
+│   1562 │   │   │   │   │   │   emoji=emoji,                                  │
+│   1563 │   │   │   │   │   │   markup=markup,                                │
+│                                                                              │
+│ /home/zhufan/Downloads/openforge/.venv/lib64/python3.14/site-packages/rich/c │
+│ onsole.py:1442 in render_str                                                 │
+│                                                                              │
+│   1439 │   │   highlight_enabled = highlight or (highlight is None and       │
+│        self._highlight)                                                      │
+│   1440 │   │                                                                 │
+│   1441 │   │   if markup_enabled:                                            │
+│ ❱ 1442 │   │   │   rich_text = render_markup(                                │
+│   1443 │   │   │   │   text,                                                 │
+│   1444 │   │   │   │   style=style,                                          │
+│   1445 │   │   │   │   emoji=emoji_enabled,                                  │
+│                                                                              │
+│ /home/zhufan/Downloads/openforge/.venv/lib64/python3.14/site-packages/rich/m │
+│ arkup.py:167 in render                                                       │
+│                                                                              │
+│   164 │   │   │   │   │   try:                                               │
+│   165 │   │   │   │   │   │   start, open_tag = pop_style(style_name)        │
+│   166 │   │   │   │   │   except KeyError:                                   │
+│ ❱ 167 │   │   │   │   │   │   raise MarkupError(                             │
+│   168 │   │   │   │   │   │   │   f"closing tag '{tag.markup}' at position   │
+│       {position} doesn't match any open tag"                                 │
+│   169 │   │   │   │   │   │   ) from None                                    │
+│   170 │   │   │   │   else:  # implicit close                                │
+╰──────────────────────────────────────────────────────────────────────────────╯
+MarkupError: closing tag '[/foo-/bar-/foo/bar]' at position 5 doesn't match any 
+open tag

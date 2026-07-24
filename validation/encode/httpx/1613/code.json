@@ -2,15 +2,15 @@
   "schema_version": 1,
   "artifact": "CodeResult",
   "generator": "openforge.agents.coder.CodingAgent",
-  "created_at": "2026-07-24T22:46:40.976487+00:00",
+  "created_at": "2026-07-24T23:29:52.217763+00:00",
   "provenance": {
-    "run_id": "2026-07-24T22-43-27",
+    "run_id": "2026-07-24T23-27-22",
     "generator": "openforge.agents.coder.CodingAgent",
     "source_artifacts": [
       {
         "artifact": "ImplementationPlan",
         "file_name": "plan.json",
-        "run_id": "2026-07-24T22-43-27"
+        "run_id": "2026-07-24T23-27-22"
       }
     ]
   },
@@ -29,17 +29,17 @@
         "command": "pytest tests/client/test_client.py -k timeout",
         "returncode": 5,
         "passed": false,
-        "stdout": "============================= test session starts ==============================\nplatform linux -- Python 3.11.15, pytest-8.4.1, pluggy-1.6.0\nrootdir: /repo\nconfigfile: pyproject.toml\nplugins: anyio-4.14.2, hypothesis-6.161.2, Faker-40.36.0, asyncio-1.4.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 35 items / 35 deselected / 0 selected\n\n============================ 35 deselected in 0.80s ============================\n",
+        "stdout": "============================= test session starts ==============================\nplatform linux -- Python 3.11.15, pytest-8.4.1, pluggy-1.6.0\nrootdir: /repo\nconfigfile: pyproject.toml\nplugins: anyio-4.14.2, Faker-40.36.0, hypothesis-6.161.2, asyncio-1.4.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 35 items / 35 deselected / 0 selected\n\n============================ 35 deselected in 0.71s ============================\n",
         "stderr": ""
       },
       {
         "command": "pytest tests/ -k stream",
         "returncode": 0,
         "passed": true,
-        "stdout": "============================= test session starts ==============================\nplatform linux -- Python 3.11.15, pytest-8.4.1, pluggy-1.6.0\nrootdir: /repo\nconfigfile: pyproject.toml\nplugins: anyio-4.14.2, hypothesis-6.161.2, Faker-40.36.0, asyncio-1.4.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 1418 items / 1378 deselected / 40 selected\n\ntests/client/test_async_client.py ..........                             [ 25%]\ntests/client/test_auth.py ....                                           [ 35%]\ntests/client/test_client.py ...                                          [ 42%]\ntests/client/test_redirects.py ..                                        [ 47%]\ntests/models/test_requests.py ......                                     [ 62%]\ntests/models/test_responses.py ........                                  [ 82%]\ntests/test_api.py ..                                                     [ 87%]\ntests/test_decoders.py ...                                               [ 95%]\ntests/test_multipart.py .                                                [ 97%]\ntests/test_wsgi.py .                                                     [100%]\n\n===================== 40 passed, 1378 deselected in 2.30s ======================\n",
+        "stdout": "============================= test session starts ==============================\nplatform linux -- Python 3.11.15, pytest-8.4.1, pluggy-1.6.0\nrootdir: /repo\nconfigfile: pyproject.toml\nplugins: anyio-4.14.2, Faker-40.36.0, hypothesis-6.161.2, asyncio-1.4.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 1418 items / 1378 deselected / 40 selected\n\ntests/client/test_async_client.py ..........                             [ 25%]\ntests/client/test_auth.py ....                                           [ 35%]\ntests/client/test_client.py ...                                          [ 42%]\ntests/client/test_redirects.py ..                                        [ 47%]\ntests/models/test_requests.py ......                                     [ 62%]\ntests/models/test_responses.py ........                                  [ 82%]\ntests/test_api.py ..                                                     [ 87%]\ntests/test_decoders.py ...                                               [ 95%]\ntests/test_multipart.py .                                                [ 97%]\ntests/test_wsgi.py .                                                     [100%]\n\n===================== 40 passed, 1378 deselected in 1.46s ======================\n",
         "stderr": ""
       }
     ],
-    "summary": "Forwarded the `timeout` parameter to the underlying `client.stream()` call so user-provided timeout values are correctly passed through to the transport layer."
+    "summary": "Added missing `timeout=timeout` forwarding to the `client.stream()` call in `httpx/_api.py::stream()`."
   }
 }

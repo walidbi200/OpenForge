@@ -1,7 +1,7 @@
                                             
            INFO     Running test securely inside Docker container.              
-[23:45:47] INFO     Running test securely inside Docker container.              
-[23:46:40] INFO     Finished running tests                                      
+[00:29:05] INFO     Running test securely inside Docker container.              
+[00:29:52] INFO     Finished running tests                                      
 ✓ Code generated
 
 Branch: openforge/1613-add-the-missing-timeout-parame
@@ -26,12 +26,12 @@ Tests: pytest tests/client/test_client.py -k timeout  →  FAILED (exit 5)
 platform linux -- Python 3.11.15, pytest-8.4.1, pluggy-1.6.0
 rootdir: /repo
 configfile: pyproject.toml
-plugins: anyio-4.14.2, hypothesis-6.161.2, Faker-40.36.0, asyncio-1.4.0
+plugins: anyio-4.14.2, Faker-40.36.0, hypothesis-6.161.2, asyncio-1.4.0
 asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None,
 asyncio_default_test_loop_scope=function
 collected 35 items / 35 deselected / 0 selected
 
-============================ 35 deselected in 0.80s ============================
+============================ 35 deselected in 0.71s ============================
 
 
 Tests: pytest tests/ -k stream  →  PASSED (exit 0)
@@ -39,7 +39,7 @@ Tests: pytest tests/ -k stream  →  PASSED (exit 0)
 platform linux -- Python 3.11.15, pytest-8.4.1, pluggy-1.6.0
 rootdir: /repo
 configfile: pyproject.toml
-plugins: anyio-4.14.2, hypothesis-6.161.2, Faker-40.36.0, asyncio-1.4.0
+plugins: anyio-4.14.2, Faker-40.36.0, hypothesis-6.161.2, asyncio-1.4.0
 asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None,
 asyncio_default_test_loop_scope=function
 collected 1418 items / 1378 deselected / 40 selected
@@ -55,11 +55,11 @@ tests/test_decoders.py ...                                               [ 95%]
 tests/test_multipart.py .                                                [ 97%]
 tests/test_wsgi.py .                                                     [100%]
 
-===================== 40 passed, 1378 deselected in 2.30s ======================
+===================== 40 passed, 1378 deselected in 1.46s ======================
 
 
 runs/
-└── 2026-07-24T22-43-27/
+└── 2026-07-24T23-27-22/
     ├── code.json
     ├── issue_facts.json
     ├── logs.txt

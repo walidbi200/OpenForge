@@ -1,24 +1,23 @@
                                             
            INFO     Running test securely inside Docker container.              
-[23:50:23] INFO     Finished running tests                                      
+[00:33:15] INFO     Finished running tests                                      
 ✓ Code generated
 
 Branch: openforge/3021-fix-the-console-html-format-te
 
 Git diff:
 diff --git a/rich/console.py b/rich/console.py
-index 0bdce76..422d7b1 100644
+index 0bdce76..9fb2a8e 100644
 --- a/rich/console.py
 +++ b/rich/console.py
-@@ -35,7 +35,26 @@ from rich._null_file import NULL_FILE
+@@ -35,7 +35,25 @@ from rich._null_file import NULL_FILE
  
  from . import errors, themes
  from ._emoji_replace import _emoji_replace
 -from ._export_format import CONSOLE_HTML_FORMAT, CONSOLE_SVG_FORMAT
 +from ._export_format import CONSOLE_SVG_FORMAT
 +
-+CONSOLE_HTML_FORMAT = """\
-+<!DOCTYPE html>
++CONSOLE_HTML_FORMAT = """<!DOCTYPE html>
 +<html>
 +<head>
 +<meta charset="UTF-8">
@@ -31,8 +30,7 @@ index 0bdce76..422d7b1 100644
 +</style>
 +</head>
 +<body>
-+<pre style="font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier 
-New',monospace"><code>{code}</code></pre>
++<pre style="font-family:Consolas, 'Courier New', monospace">{code}</pre>
 +</body>
 +</html>
 +"""
@@ -42,8 +40,10 @@ New',monospace"><code>{code}</code></pre>
 
 
 Tests: pytest tests/test_console.py -k html  →  FAILED (exit 1)
-family:inherit"><span style="font-weight: bold">foo </span><span 
-style="font-weight: bold"><a 
+und-color: #ffffff;\n}\n</style>\n</head>\n<body>\n    <pre 
+style="font-family:Menlo,\'DejaVu Sans Mono\',consolas,\'Courier 
+New\',monospace"><code style="font-family:inherit"><span style="font-weight: 
+bold">foo </span><span style="font-weight: bold"><a 
 href="https://example.org">Click</a></span>\n</code></pre>\n</body>\n</html>\n'
 >       assert html == expected
 E       assert '<!DOCTYPE ht...y>\n</html>\n' == '<!DOCTYPE ht...y>\n</html>\n'
@@ -55,10 +55,11 @@ E         -     <pre style="font-family:Menlo,'DejaVu Sans
 Mono',consolas,'Courier New',monospace"><code style="font-family:inherit"><span 
 style="font-weight: bold">foo </span><span style="font-weight: bold"><a 
 href="https://example.org">Click</a></span>
-E         ? ^^^^^^^^                                                            
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-E         + <pre style="font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier 
-New',monospace"><code><span style="font-weight: bold">foo ...
+E         ? ----                        ^^^^^^^^^^^^^^^^^^^^^^^^^^              
+----------------------------------
+E         + <pre style="font-family:Consolas, 'Courier New', monospace"><span 
+style="font-weight: bold">foo </span><span style="font-weight: bold"><a 
+href="https://example.org">Click</a></span>...
 E         
 E         ...Full output truncated (5 lines hidden), use '-vv' to show
 
@@ -67,10 +68,10 @@ tests/test_console.py:534: AssertionError
 foo Click
 '<!DOCTYPE html>\n<html>\n<head>\n<meta charset="UTF-8">\n<style>\n\nbody {\n   
 color: #000000;\n    background-color: 
-#ffffff;\n}\n</style>\n</head>\n<body>\n<pre style="font-family:Menlo,\'DejaVu 
-Sans Mono\',consolas,\'Courier New\',monospace"><code><span style="font-weight: 
-bold">foo </span><span style="font-weight: bold"><a 
-href="https://example.org">Click</a></span>\n</code></pre>\n</body>\n</html>\n'
+#ffffff;\n}\n</style>\n</head>\n<body>\n<pre style="font-family:Consolas, 
+\'Courier New\', monospace"><span style="font-weight: bold">foo </span><span 
+style="font-weight: bold"><a 
+href="https://example.org">Click</a></span>\n</pre>\n</body>\n</html>\n'
 ________________________________ test_save_html ________________________________
 
     def test_save_html() -> None:
@@ -98,10 +99,9 @@ E                   d>
 E                   <body>
 E                 -     <pre style="font-family:Menlo,'DejaVu Sans 
 Mono',consolas,'Courier New',monospace"><code style="font-family:inherit">foo
-E                 ? ----                                                        
-----------------------------
-E                 + <pre style="font-family:Menlo,'DejaVu Sans 
-Mono',consolas,'Courier New',monospace"><code>foo...
+E                 - </code></pre>
+E                 + <pre style="font-family:Consolas, 'Courier New', 
+monospace">foo...
 E                 
 E                 ...Full output truncated (3 lines hidden), use '-vv' to show
 
@@ -110,18 +110,17 @@ tests/test_console.py:595: AssertionError
 foo
 '<!DOCTYPE html>\n<html>\n<head>\n<meta charset="UTF-8">\n<style>\n\nbody {\n   
 color: #000000;\n    background-color: 
-#ffffff;\n}\n</style>\n</head>\n<body>\n<pre style="font-family:Menlo,\'DejaVu 
-Sans Mono\',consolas,\'Courier 
-New\',monospace"><code>foo\n</code></pre>\n</body>\n</html>\n'
+#ffffff;\n}\n</style>\n</head>\n<body>\n<pre style="font-family:Consolas, 
+\'Courier New\', monospace">foo\n</pre>\n</body>\n</html>\n'
 =========================== short test summary info ============================
 FAILED tests/test_console.py::test_export_html - assert '<!DOCTYPE ht...y>\n<...
 FAILED tests/test_console.py::test_export_html_inline - assert '<!DOCTYPE ht....
 FAILED tests/test_console.py::test_save_html - assert '<!DOCTYPE ht...y>\n</h...
-======================= 3 failed, 97 deselected in 3.42s =======================
+======================= 3 failed, 97 deselected in 0.88s =======================
 
 
 runs/
-└── 2026-07-24T22-48-56/
+└── 2026-07-24T23-30-53/
     ├── code.json
     ├── issue_facts.json
     ├── logs.txt

@@ -1,16 +1,15 @@
 diff --git a/rich/console.py b/rich/console.py
-index 0bdce76..422d7b1 100644
+index 0bdce76..9fb2a8e 100644
 --- a/rich/console.py
 +++ b/rich/console.py
-@@ -35,7 +35,26 @@ from rich._null_file import NULL_FILE
+@@ -35,7 +35,25 @@ from rich._null_file import NULL_FILE
  
  from . import errors, themes
  from ._emoji_replace import _emoji_replace
 -from ._export_format import CONSOLE_HTML_FORMAT, CONSOLE_SVG_FORMAT
 +from ._export_format import CONSOLE_SVG_FORMAT
 +
-+CONSOLE_HTML_FORMAT = """\
-+<!DOCTYPE html>
++CONSOLE_HTML_FORMAT = """<!DOCTYPE html>
 +<html>
 +<head>
 +<meta charset="UTF-8">
@@ -23,7 +22,7 @@ index 0bdce76..422d7b1 100644
 +</style>
 +</head>
 +<body>
-+<pre style="font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace"><code>{code}</code></pre>
++<pre style="font-family:Consolas, 'Courier New', monospace">{code}</pre>
 +</body>
 +</html>
 +"""

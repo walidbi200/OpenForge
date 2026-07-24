@@ -3,16 +3,16 @@
   "tool_version": "0.1.0",
   "artifact": "IssueFacts",
   "generator": "openforge.services.issue_extractor.IssueExtractor",
-  "created_at": "2026-07-24T22:50:26.859276+00:00",
-  "data_checksum": "sha256:edbd9fbad5b43b4336fc5b60c75adee684ba3c83a913686f7dafaba72fd7761e",
+  "created_at": "2026-07-24T23:33:16.652175+00:00",
+  "data_checksum": "sha256:3af4baa1781d1f36d0b6a97ba8467eadb60d8d5ecc0ff87319b12c3579c690f1",
   "provenance": {
-    "run_id": "2026-07-24T22-50-25",
+    "run_id": "2026-07-24T23-33-15",
     "generator": "openforge.services.issue_extractor.IssueExtractor",
     "source_artifacts": [
       {
         "artifact": "RepositoryContext",
         "file_name": "repository.json",
-        "run_id": "2026-07-24T22-50-25",
+        "run_id": "2026-07-24T23-33-15",
         "checksum": "sha256:3a2ac5dbbbe1ae0242994ec1ae244a84957b7dfbfad11810ba20b22acf0a2b7a"
       }
     ]
@@ -38,6 +38,6 @@
     "has_traceback": false,
     "tracebacks": [],
     "has_reproduction_steps": false,
-    "extracted_at": "2026-07-24T22:50:26.858115+00:00"
+    "extracted_at": "2026-07-24T23:33:16.651632+00:00"
   }
 }

@@ -3,10 +3,10 @@
   "tool_version": "0.1.0",
   "artifact": "RepositoryContext",
   "generator": "openforge.services.repository_analyzer.RepositoryAnalyzer",
-  "created_at": "2026-07-24T22:39:01.083269+00:00",
-  "data_checksum": "sha256:f1d373ebb6a1b602e58d2d66563b776fdc64def138171e1859e4bd847a5befed",
+  "created_at": "2026-07-24T23:23:53.002219+00:00",
+  "data_checksum": "sha256:e9d26ace1c2ace8fb7d04b1e0c550f30dd32ee22adfa92f373c656e6ab809750",
   "provenance": {
-    "run_id": "2026-07-24T22-39-01",
+    "run_id": "2026-07-24T23-23-53",
     "generator": "openforge.services.repository_analyzer.RepositoryAnalyzer",
     "source_artifacts": []
   },
@@ -34,6 +34,6 @@
       "linter": "found ruff config",
       "ci": "found workflow files in .github/workflows"
     },
-    "conventions_summary": "This looks like the Python-based Scrapy project, with its main package code under the `scrapy/` directory, test suites organized into `tests/` and `tests_typing/`, and documentation stored in `docs/`. The repository also includes `extras/` and `sep/` top-level directories, though their exact purpose was not detected. New contributors should run the test suite with pytest and ensure any code changes pass the project's `ruff` linter and formatter checks. Because CI is handled through GitHub Actions, submitted changes will be validated by automated workflows. Since there is a separate `tests_typing` directory, you should verify whether your changes need type-specific test coverage."
+    "conventions_summary": "This appears to be the main repository for Scrapy, a Python project organized with the core package in `scrapy/`, test suites in `tests/` and `tests_typing/`, documentation in `docs/`, and additional directories including `extras/` and `sep/`. The separate `tests_typing/` directory suggests there is an additional layer of typing-related tests beyond the main suite. Contributors should run the test suite using `pytest` and ensure their code passes `ruff`, which is configured as both the linter and the formatter. All changes will be validated through GitHub Actions workflows, so automated checks will run on any pull request. Because `ruff` is explicitly set up, you should let it handle code style rather than trying to match formatting by hand."
   }
 }

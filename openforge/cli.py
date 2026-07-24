@@ -6,6 +6,7 @@ openforge inspect        Milestone 2 — analyze a repository → repository.jso
 openforge analyze-issue  Milestone 3 — extract issue facts  → issue_facts.json
 openforge plan           Milestone 4 — build an implementation plan → plan.json
 openforge code           Milestone 5 — generate code changes → code.json
+openforge benchmark      Benchmark RepositoryAnalyzer accuracy.
 openforge version        Print version.
 """
 
@@ -562,7 +563,7 @@ def plan(
     planner = PlannerAgent(settings)
     with console.status("[bold cyan]Generating implementation plan (LLM)..."):
         try:
-            impl_plan = planner.plan(repo_context, issue_facts)
+            impl_plan = planner.plan(repo_context, issue_facts, run_dir=run_dir)
         except PlannerError as exc:
             console.print(f"[bold red]Planner error:[/bold red] {exc}")
             raise typer.Exit(code=1)
@@ -700,14 +701,14 @@ def code(
 
     # --- Run CodingAgent (LLM + git + tests) --------------------------------
     agent = CodingAgent(settings)
-    console.print("[bold cyan]Generating code and running tests...[/bold cyan]")
-    try:
-        result = agent.implement(
-            repo_context, impl_plan, issue_number=issue_number
-        )
-    except CoderError as exc:
-        console.print(f"[bold red]Coder error:[/bold red] {exc}")
-        raise typer.Exit(code=1)
+    with console.status("[bold cyan]Generating code and running tests..."):
+        try:
+            result = agent.implement(
+                repo_context, impl_plan, issue_number=issue_number, run_dir=run_dir
+            )
+        except CoderError as exc:
+            console.print(f"[bold red]Coder error:[/bold red] {exc}")
+            raise typer.Exit(code=1)
 
     console.print(f"[green]✓[/green] Code generated")
 
@@ -823,7 +824,9 @@ def _print_code_result(result) -> None:
         status = "[bold green]PASSED[/bold green]" if tr.passed else "[bold red]FAILED[/bold red]"
         console.print(f"\n[bold]Tests:[/bold] {tr.command}  →  {status} (exit {tr.returncode})")
         if tr.stdout:
-            console.print(tr.stdout[-4000:])
+            # Wrap in Text() to prevent Rich from interpreting stdout markup tags
+            from rich.text import Text
+            console.print(Text(tr.stdout[-4000:]))
         if tr.stderr and not tr.passed:
             console.print("[dim]stderr:[/dim]")
             console.print(tr.stderr[-2000:])
@@ -896,6 +899,82 @@ def _print_issue_facts(facts: IssueFacts) -> None:
         console.print("\n[bold]Mentioned files:[/bold]")
         for f in facts.mentioned_files:
             console.print(f"  • {f}")
+
+
+# ---------------------------------------------------------------------------
+# openforge benchmark
+# ---------------------------------------------------------------------------
+
+@app.command()
+def benchmark(
+    repo: list[str] = typer.Option(
+        None,
+        "--repo",
+        help="Specific repository name(s) to benchmark (e.g., Flask). Can be used multiple times.",
+    ),
+    update: bool = typer.Option(
+        False,
+        "--update",
+        help="Force a clean clone by removing existing workspaces.",
+    ),
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        help="Output raw JSON instead of human-readable summary.",
+    ),
+) -> None:
+    """Run accuracy benchmarks for RepositoryAnalyzer."""
+    settings = get_settings()
+    configure_logging(settings.log_level)
+
+    from openforge.benchmarks.runner import BenchmarkRunner
+    from openforge.benchmarks.report import BenchmarkReporter
+
+    json_path = Path(__file__).parent / "benchmarks" / "repositories.json"
+    if not json_path.exists():
+        console.print(f"[bold red]Error:[/bold red] Benchmark catalog not found at {json_path}")
+        raise typer.Exit(code=1)
+
+    runner = BenchmarkRunner(settings.workspace_dir, json_path)
+    
+    # We could stream results with Rich progress, but for simplicity, let's just use console.status
+    if not json_output:
+        console.print("\n[bold]Running RepositoryAnalyzer Benchmark[/bold]\n")
+
+    results = runner.run(repo_names=repo, update=update)
+    reporter = BenchmarkReporter(settings.runs_dir)
+    out_dir = reporter.generate_report(results)
+
+    if json_output:
+        summary_path = out_dir / "summary.json"
+        console.print(summary_path.read_text())
+        return
+
+    # Print the terminal summary matching the user's mock output
+    for i, r in enumerate(results.repos, 1):
+        console.print(f"[{i}/{len(results.repos)}] {r.name}")
+        console.print("✓ cloned" if update else "✓ reused clone")
+        console.print("✓ analyzed\n")
+        
+        console.print("[bold]Accuracy[/bold]\n")
+        for f, match in r.matches.items():
+            icon = "[green]✓[/green]" if match else "[red]✗[/red]"
+            console.print(f"{f:<17} {icon}")
+        
+        console.print("\n[bold]Score[/bold]")
+        console.print(f"{r.correct_count} / {r.total_count}")
+        console.print("-" * 32 + "\n")
+
+    console.print("[bold]Overall[/bold]\n")
+    console.print(f"Repositories:\n{len(results.repos)}\n")
+    console.print(f"Perfect:\n{len(results.perfect_repos)}\n")
+    
+    total_correct = sum(r.correct_count for r in results.repos)
+    total_fields = sum(r.total_count for r in results.repos)
+    console.print(f"Field accuracy:\n{total_correct} / {total_fields}\n")
+    
+    console.print(f"Overall:\n{results.overall_accuracy:.1f}%\n")
+    console.print(f"Report saved to: {out_dir}/report.md")
 
 
 def main() -> None:

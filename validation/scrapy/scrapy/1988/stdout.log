@@ -1,8 +1,8 @@
 
 --- CMD: uv run openforge inspect https://github.com/scrapy/scrapy ---
-[23:39:00] INFO     Using existing clone at workspace/scrapy-scrapy (delete it  
+[00:23:30] INFO     Using existing clone at workspace/scrapy-scrapy (delete it  
                     to re-clone)                                                
-           INFO     HTTP Request: POST                                          
+[00:23:31] INFO     HTTP Request: POST                                          
                     https://inference.dahl.global/v1/chat/completions "HTTP/1.1 
                     200 OK"                                                     
                    RepositoryAnalyzer report — scrapy/scrapy                    
@@ -21,30 +21,30 @@
 Top-level directories: docs, extras, scrapy, sep, tests, tests_typing
 
 Conventions summary:
-This looks like the Python-based Scrapy project, with its main package code 
-under the `scrapy/` directory, test suites organized into `tests/` and 
-`tests_typing/`, and documentation stored in `docs/`. The repository also 
-includes `extras/` and `sep/` top-level directories, though their exact purpose 
-was not detected. New contributors should run the test suite with pytest and 
-ensure any code changes pass the project's `ruff` linter and formatter checks. 
-Because CI is handled through GitHub Actions, submitted changes will be 
-validated by automated workflows. Since there is a separate `tests_typing` 
-directory, you should verify whether your changes need type-specific test 
-coverage.
+This appears to be the main repository for Scrapy, a Python project organized 
+with the core package in `scrapy/`, test suites in `tests/` and `tests_typing/`,
+documentation in `docs/`, and additional directories including `extras/` and 
+`sep/`. The separate `tests_typing/` directory suggests there is an additional 
+layer of typing-related tests beyond the main suite. Contributors should run the
+test suite using `pytest` and ensure their code passes `ruff`, which is 
+configured as both the linter and the formatter. All changes will be validated 
+through GitHub Actions workflows, so automated checks will run on any pull 
+request. Because `ruff` is explicitly set up, you should let it handle code 
+style rather than trying to match formatting by hand.
 
 ✓ Repository analyzed
 
 runs/
-└── 2026-07-24T22-39-01/
+└── 2026-07-24T23-23-53/
     ├── logs.txt
     ├── manifest.json
     ├── repository.json
     └── summary.md
 
---- CMD: uv run openforge analyze-issue https://github.com/scrapy/scrapy/issues/1988 --run 2026-07-24T22-39-01 ---
+--- CMD: uv run openforge analyze-issue https://github.com/scrapy/scrapy/issues/1988 --run 2026-07-24T23-23-53 ---
 Issue: scrapy/scrapy#1988
-✓ Loaded repository context from runs/2026-07-24T22-39-01/
-[23:39:01] INFO     HTTP Request: GET                                           
+✓ Loaded repository context from runs/2026-07-24T23-23-53/
+[00:23:53] INFO     HTTP Request: GET                                           
                     https://api.github.com/repos/scrapy/scrapy/issues/1988      
                     "HTTP/1.1 200 OK"                                           
 ✓ Issue fetched: '"Content-Encoding" header gets stripped from response headers'
@@ -71,18 +71,18 @@ github.com/scrapy/scrapy/blob/master/scrapy/downloadermiddlewares/httpcompressio
 n.py
 
 runs/
-└── 2026-07-24T22-39-01/
+└── 2026-07-24T23-23-53/
     ├── issue_facts.json
     ├── logs.txt
     ├── manifest.json
     ├── repository.json
     └── summary.md
 
---- CMD: uv run openforge plan https://github.com/scrapy/scrapy/issues/1988 --run 2026-07-24T22-39-01 ---
+--- CMD: uv run openforge plan https://github.com/scrapy/scrapy/issues/1988 --run 2026-07-24T23-23-53 ---
 Planning: scrapy/scrapy#1988
-✓ Loaded repository context from runs/2026-07-24T22-39-01/
-✓ Loaded issue facts from runs/2026-07-24T22-39-01/
-[23:39:02] INFO     HTTP Request: POST                                          
+✓ Loaded repository context from runs/2026-07-24T23-23-53/
+✓ Loaded issue facts from runs/2026-07-24T23-23-53/
+[00:23:54] INFO     HTTP Request: POST                                          
                     https://inference.dahl.global/v1/chat/completions "HTTP/1.1 
                     200 OK"                                                     
 ✓ Plan generated
@@ -117,7 +117,7 @@ absence of Content-Encoding to assume the body is already decompressed;
 preserving it could change expected behavior for existing spiders.
 
 runs/
-└── 2026-07-24T22-39-01/
+└── 2026-07-24T23-23-53/
     ├── issue_facts.json
     ├── logs.txt
     ├── manifest.json
@@ -126,33 +126,141 @@ runs/
     ├── repository.json
     └── summary.md
 
---- CMD: uv run openforge code --run 2026-07-24T22-39-01 --force ---
-✓ Loaded repository context from runs/2026-07-24T22-39-01/
-✓ Loaded plan from runs/2026-07-24T22-39-01/
-[23:39:03] WARNING  Proceeding with requires_human=True plan due to --force     
+--- CMD: uv run openforge code --run 2026-07-24T23-23-53 --force ---
+✓ Loaded repository context from runs/2026-07-24T23-23-53/
+✓ Loaded plan from runs/2026-07-24T23-23-53/
+[00:23:54] WARNING  Proceeding with requires_human=True plan due to --force     
                     flag.                                                       
-           WARNING  Working tree not clean. Resetting and cleaning...           
-[23:39:04] INFO     HTTP Request: POST                                          
+[00:23:55] INFO     HTTP Request: POST                                          
                     https://inference.dahl.global/v1/chat/completions "HTTP/1.1 
                     200 OK"                                                     
-[23:40:14] INFO     LLM returned 9702 bytes                                     
+[00:24:26] INFO     LLM returned 2223 bytes                                     
            INFO     Parsing LLM response...                                     
-           WARNING  CodingAgent: JSON parsing failed. Attempting repair...      
-Coder error: Coder LLM returned non-JSON output.
-Parse error: Expecting value: line 1 column 10 (char 9)
-Raw output saved to failed_coder_raw.json
-Raw output (first 500 chars): Let me analyze the code carefully.
+           INFO     Parsed 1 edits                                              
+           INFO     Wrote scrapy/downloadermiddlewares/httpcompression.py (7900 
+                    bytes)                                                      
+           INFO     Running git diff...                                         
+           INFO     Running git diff --name-only...                             
+           INFO     Running tests...                                            
+           INFO     Running test securely inside Docker container.              
+[00:24:54] INFO     Finished running tests                                      
+✓ Code generated
 
-In `process_response`:
-```python
-content_encoding = response.headers.getlist("Content-Encoding")
-if content_encoding:
-    max_size = request.meta.get("download_maxsize", self._max_size)
-    warn_size = request.meta.get("download_warnsize", self._warn_size)
-    try:
-        decoded_body, content_encoding = self._handle_encoding(
-            response.body, content_encoding, max_size
-        )
-    except _DecompressionMaxSizeExceeded as e:
-        ...
-    if len(
+Branch: openforge/1988-preserve-the-original-content
+
+Git diff:
+diff --git a/scrapy/downloadermiddlewares/httpcompression.py 
+b/scrapy/downloadermiddlewares/httpcompression.py
+index 13a4324..e63cf75 100644
+--- a/scrapy/downloadermiddlewares/httpcompression.py
++++ b/scrapy/downloadermiddlewares/httpcompression.py
+@@ -139,7 +139,6 @@ class HttpCompressionMiddleware:
+                 )
+             if content_encoding:
+                 self._warn_unknown_encoding(response, content_encoding)
+-            response.headers["Content-Encoding"] = content_encoding
+             if self.stats:
+                 self.stats.inc_value(
+                     "httpcompression/response_bytes",
+@@ -155,8 +154,6 @@ class HttpCompressionMiddleware:
+                 # responsetypes guessing is reliable
+                 kwargs["encoding"] = None
+             response = response.replace(cls=respcls, **kwargs)
+-            if not content_encoding:
+-                del response.headers["Content-Encoding"]
+         return response
+ 
+     def _handle_encoding(
+
+
+Tests: pytest tests/test_downloadermiddleware_httpcompression.py  →  FAILED 
+(exit 1)
+lf):
+        response = self._getresponse("gzip")
+        response.headers["Content-Type"] = "application/octet-stream"
+        request = response.request
+    
+        newresponse = self.mw.process_response(request, response)
+        assert newresponse is not response
+        assert newresponse.body.startswith(b"<!DOCTYPE")
+>       assert "Content-Encoding" not in newresponse.headers
+E       AssertionError: assert 'Content-Encoding' not in {b'Server': , b'Date': 
+, b'Content-Length': , b'Content-Type': , b'Content-Encoding': }
+E        +  where {b'Server': , b'Date': , b'Content-Length': , b'Content-Type':
+, b'Content-Encoding': } = <200 http://scrapytest.org/>.headers
+
+tests/test_downloadermiddleware_httpcompression.py:459: AssertionError
+_ TestHttpCompression.test_process_response_gzip_binary_octetstream_contenttype 
+_
+
+self = <tests.test_downloadermiddleware_httpcompression.TestHttpCompression 
+object at 0x7f8a24642dd0>
+
+    def test_process_response_gzip_binary_octetstream_contenttype(self):
+        response = self._getresponse("x-gzip")
+        response.headers["Content-Type"] = "binary/octet-stream"
+        request = response.request
+    
+        newresponse = self.mw.process_response(request, response)
+        assert newresponse is not response
+        assert newresponse.body.startswith(b"<!DOCTYPE")
+>       assert "Content-Encoding" not in newresponse.headers
+E       AssertionError: assert 'Content-Encoding' not in {b'Server': , b'Date': 
+, b'Content-Length': , b'Content-Type': , b'Content-Encoding': }
+E        +  where {b'Server': , b'Date': , b'Content-Length': , b'Content-Type':
+, b'Content-Encoding': } = <200 http://scrapytest.org/>.headers
+
+tests/test_downloadermiddleware_httpcompression.py:471: AssertionError
+=========================== short test summary info ============================
+FAILED 
+tests/test_downloadermiddleware_httpcompression.py::TestHttpCompression::test_pr
+ocess_response_gzip
+FAILED 
+tests/test_downloadermiddleware_httpcompression.py::TestHttpCompression::test_pr
+ocess_response_rawdeflate
+FAILED 
+tests/test_downloadermiddleware_httpcompression.py::TestHttpCompression::test_pr
+ocess_response_zlibdelate
+FAILED 
+tests/test_downloadermiddleware_httpcompression.py::TestHttpCompression::test_mu
+ltipleencodings
+FAILED 
+tests/test_downloadermiddleware_httpcompression.py::TestHttpCompression::test_mu
+lti_compression_single_header
+FAILED 
+tests/test_downloadermiddleware_httpcompression.py::TestHttpCompression::test_mu
+lti_compression_single_header_invalid_compression
+FAILED 
+tests/test_downloadermiddleware_httpcompression.py::TestHttpCompression::test_mu
+lti_compression_multiple_header
+FAILED 
+tests/test_downloadermiddleware_httpcompression.py::TestHttpCompression::test_mu
+lti_compression_multiple_header_invalid_compression
+FAILED 
+tests/test_downloadermiddleware_httpcompression.py::TestHttpCompression::test_mu
+lti_compression_single_and_multiple_header
+FAILED 
+tests/test_downloadermiddleware_httpcompression.py::TestHttpCompression::test_mu
+lti_compression_single_and_multiple_header_invalid_compression
+FAILED 
+tests/test_downloadermiddleware_httpcompression.py::TestHttpCompression::test_pr
+ocess_response_gzipped_contenttype
+FAILED 
+tests/test_downloadermiddleware_httpcompression.py::TestHttpCompression::test_pr
+ocess_response_gzip_app_octetstream_contenttype
+FAILED 
+tests/test_downloadermiddleware_httpcompression.py::TestHttpCompression::test_pr
+ocess_response_gzip_binary_octetstream_contenttype
+================== 13 failed, 28 passed, 16 skipped in 1.82s ===================
+
+
+runs/
+└── 2026-07-24T23-23-53/
+    ├── code.json
+    ├── issue_facts.json
+    ├── logs.txt
+    ├── manifest.json
+    ├── plan.json
+    ├── prompt_metrics.json
+    ├── repository.json
+    └── summary.md

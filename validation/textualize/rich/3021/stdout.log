@@ -1,6 +1,6 @@
 
 --- CMD: uv run openforge inspect https://github.com/textualize/rich ---
-[23:48:36] INFO     Using existing clone at workspace/textualize-rich (delete it
+[00:30:53] INFO     Using existing clone at workspace/textualize-rich (delete it
                     to re-clone)                                                
            INFO     HTTP Request: POST                                          
                     https://inference.dahl.global/v1/chat/completions "HTTP/1.1 
@@ -35,16 +35,16 @@ changes.
 ✓ Repository analyzed
 
 runs/
-└── 2026-07-24T22-48-56/
+└── 2026-07-24T23-30-53/
     ├── logs.txt
     ├── manifest.json
     ├── repository.json
     └── summary.md
 
---- CMD: uv run openforge analyze-issue https://github.com/textualize/rich/issues/3021 --run 2026-07-24T22-48-56 ---
+--- CMD: uv run openforge analyze-issue https://github.com/textualize/rich/issues/3021 --run 2026-07-24T23-30-53 ---
 Issue: textualize/rich#3021
-✓ Loaded repository context from runs/2026-07-24T22-48-56/
-[23:48:57] INFO     HTTP Request: GET                                           
+✓ Loaded repository context from runs/2026-07-24T23-30-53/
+[00:30:54] INFO     HTTP Request: GET                                           
                     https://api.github.com/repos/textualize/rich/issues/3021    
                     "HTTP/1.1 200 OK"                                           
 ✓ Issue fetched: '<html> tag is in wrong spot in template used by export_html()'
@@ -66,18 +66,18 @@ IssueExtractor report — #3021
 └───────────────────┴───────┘
 
 runs/
-└── 2026-07-24T22-48-56/
+└── 2026-07-24T23-30-53/
     ├── issue_facts.json
     ├── logs.txt
     ├── manifest.json
     ├── repository.json
     └── summary.md
 
---- CMD: uv run openforge plan https://github.com/textualize/rich/issues/3021 --run 2026-07-24T22-48-56 ---
+--- CMD: uv run openforge plan https://github.com/textualize/rich/issues/3021 --run 2026-07-24T23-30-53 ---
 Planning: textualize/rich#3021
-✓ Loaded repository context from runs/2026-07-24T22-48-56/
-✓ Loaded issue facts from runs/2026-07-24T22-48-56/
-[23:48:58] INFO     HTTP Request: POST                                          
+✓ Loaded repository context from runs/2026-07-24T23-30-53/
+✓ Loaded issue facts from runs/2026-07-24T23-30-53/
+[00:30:54] INFO     HTTP Request: POST                                          
                     https://inference.dahl.global/v1/chat/completions "HTTP/1.1 
                     200 OK"                                                     
 ✓ Plan generated
@@ -109,7 +109,7 @@ Risks
 or tag order of `export_html()` output, they may need minor updates.
 
 runs/
-└── 2026-07-24T22-48-56/
+└── 2026-07-24T23-30-53/
     ├── issue_facts.json
     ├── logs.txt
     ├── manifest.json
@@ -118,41 +118,52 @@ runs/
     ├── repository.json
     └── summary.md
 
---- CMD: uv run openforge code --run 2026-07-24T22-48-56 --force ---
-✓ Loaded repository context from runs/2026-07-24T22-48-56/
-✓ Loaded plan from runs/2026-07-24T22-48-56/
-[23:48:59] WARNING  Proceeding with requires_human=True plan due to --force     
+--- CMD: uv run openforge code --run 2026-07-24T23-30-53 --force ---
+✓ Loaded repository context from runs/2026-07-24T23-30-53/
+✓ Loaded plan from runs/2026-07-24T23-30-53/
+[00:30:55] WARNING  Proceeding with requires_human=True plan due to --force     
                     flag.                                                       
-[23:49:01] INFO     HTTP Request: POST                                          
+[00:30:57] INFO     HTTP Request: POST                                          
                     https://inference.dahl.global/v1/chat/completions "HTTP/1.1 
                     200 OK"                                                     
-[23:49:37] INFO     LLM returned 817 bytes                                      
-[23:49:38] INFO     Parsing LLM response...                                     
+[00:31:30] INFO     LLM returned 397 bytes                                      
+           INFO     Parsing LLM response...                                     
+           INFO     Parsed 0 edits                                              
+[00:31:34] INFO     HTTP Request: POST                                          
+                    https://inference.dahl.global/v1/chat/completions "HTTP/1.1 
+                    200 OK"                                                     
+[00:32:21] INFO     LLM returned 921 bytes                                      
+           INFO     Parsing LLM response...                                     
+           INFO     Parsed 0 edits                                              
+[00:32:23] INFO     HTTP Request: POST                                          
+                    https://inference.dahl.global/v1/chat/completions "HTTP/1.1 
+                    200 OK"                                                     
+[00:33:03] INFO     LLM returned 683 bytes                                      
+           INFO     Parsing LLM response...                                     
            INFO     Parsed 1 edits                                              
-           INFO     Wrote rich/console.py (101663 bytes)                        
+           INFO     Wrote rich/console.py (101625 bytes)                        
            INFO     Running git diff...                                         
            INFO     Running git diff --name-only...                             
            INFO     Running tests...                                            
            INFO     Running test securely inside Docker container.              
-[23:50:23] INFO     Finished running tests                                      
+[00:33:15] INFO     Finished running tests                                      
 ✓ Code generated
 
 Branch: openforge/3021-fix-the-console-html-format-te
 
 Git diff:
 diff --git a/rich/console.py b/rich/console.py
-index 0bdce76..422d7b1 100644
+index 0bdce76..9fb2a8e 100644
 --- a/rich/console.py
 +++ b/rich/console.py
-@@ -35,7 +35,26 @@ from rich._null_file import NULL_FILE
+@@ -35,7 +35,25 @@ from rich._null_file import NULL_FILE
  
  from . import errors, themes
  from ._emoji_replace import _emoji_replace
 -from ._export_format import CONSOLE_HTML_FORMAT, CONSOLE_SVG_FORMAT
 +from ._export_format import CONSOLE_SVG_FORMAT
 +
-+CONSOLE_HTML_FORMAT = """\
-+<!DOCTYPE html>
++CONSOLE_HTML_FORMAT = """<!DOCTYPE html>
 +<html>
 +<head>
 +<meta charset="UTF-8">
@@ -165,8 +176,7 @@ index 0bdce76..422d7b1 100644
 +</style>
 +</head>
 +<body>
-+<pre style="font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier 
-New',monospace"><code>{code}</code></pre>
++<pre style="font-family:Consolas, 'Courier New', monospace">{code}</pre>
 +</body>
 +</html>
 +"""
@@ -176,8 +186,10 @@ New',monospace"><code>{code}</code></pre>
 
 
 Tests: pytest tests/test_console.py -k html  →  FAILED (exit 1)
-family:inherit"><span style="font-weight: bold">foo </span><span 
-style="font-weight: bold"><a 
+und-color: #ffffff;\n}\n</style>\n</head>\n<body>\n    <pre 
+style="font-family:Menlo,\'DejaVu Sans Mono\',consolas,\'Courier 
+New\',monospace"><code style="font-family:inherit"><span style="font-weight: 
+bold">foo </span><span style="font-weight: bold"><a 
 href="https://example.org">Click</a></span>\n</code></pre>\n</body>\n</html>\n'
 >       assert html == expected
 E       assert '<!DOCTYPE ht...y>\n</html>\n' == '<!DOCTYPE ht...y>\n</html>\n'
@@ -189,10 +201,11 @@ E         -     <pre style="font-family:Menlo,'DejaVu Sans
 Mono',consolas,'Courier New',monospace"><code style="font-family:inherit"><span 
 style="font-weight: bold">foo </span><span style="font-weight: bold"><a 
 href="https://example.org">Click</a></span>
-E         ? ^^^^^^^^                                                            
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-E         + <pre style="font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier 
-New',monospace"><code><span style="font-weight: bold">foo ...
+E         ? ----                        ^^^^^^^^^^^^^^^^^^^^^^^^^^              
+----------------------------------
+E         + <pre style="font-family:Consolas, 'Courier New', monospace"><span 
+style="font-weight: bold">foo </span><span style="font-weight: bold"><a 
+href="https://example.org">Click</a></span>...
 E         
 E         ...Full output truncated (5 lines hidden), use '-vv' to show
 
@@ -201,10 +214,10 @@ tests/test_console.py:534: AssertionError
 foo Click
 '<!DOCTYPE html>\n<html>\n<head>\n<meta charset="UTF-8">\n<style>\n\nbody {\n   
 color: #000000;\n    background-color: 
-#ffffff;\n}\n</style>\n</head>\n<body>\n<pre style="font-family:Menlo,\'DejaVu 
-Sans Mono\',consolas,\'Courier New\',monospace"><code><span style="font-weight: 
-bold">foo </span><span style="font-weight: bold"><a 
-href="https://example.org">Click</a></span>\n</code></pre>\n</body>\n</html>\n'
+#ffffff;\n}\n</style>\n</head>\n<body>\n<pre style="font-family:Consolas, 
+\'Courier New\', monospace"><span style="font-weight: bold">foo </span><span 
+style="font-weight: bold"><a 
+href="https://example.org">Click</a></span>\n</pre>\n</body>\n</html>\n'
 ________________________________ test_save_html ________________________________
 
     def test_save_html() -> None:
@@ -232,10 +245,9 @@ E                   d>
 E                   <body>
 E                 -     <pre style="font-family:Menlo,'DejaVu Sans 
 Mono',consolas,'Courier New',monospace"><code style="font-family:inherit">foo
-E                 ? ----                                                        
-----------------------------
-E                 + <pre style="font-family:Menlo,'DejaVu Sans 
-Mono',consolas,'Courier New',monospace"><code>foo...
+E                 - </code></pre>
+E                 + <pre style="font-family:Consolas, 'Courier New', 
+monospace">foo...
 E                 
 E                 ...Full output truncated (3 lines hidden), use '-vv' to show
 
@@ -244,18 +256,17 @@ tests/test_console.py:595: AssertionError
 foo
 '<!DOCTYPE html>\n<html>\n<head>\n<meta charset="UTF-8">\n<style>\n\nbody {\n   
 color: #000000;\n    background-color: 
-#ffffff;\n}\n</style>\n</head>\n<body>\n<pre style="font-family:Menlo,\'DejaVu 
-Sans Mono\',consolas,\'Courier 
-New\',monospace"><code>foo\n</code></pre>\n</body>\n</html>\n'
+#ffffff;\n}\n</style>\n</head>\n<body>\n<pre style="font-family:Consolas, 
+\'Courier New\', monospace">foo\n</pre>\n</body>\n</html>\n'
 =========================== short test summary info ============================
 FAILED tests/test_console.py::test_export_html - assert '<!DOCTYPE ht...y>\n<...
 FAILED tests/test_console.py::test_export_html_inline - assert '<!DOCTYPE ht....
 FAILED tests/test_console.py::test_save_html - assert '<!DOCTYPE ht...y>\n</h...
-======================= 3 failed, 97 deselected in 3.42s =======================
+======================= 3 failed, 97 deselected in 0.88s =======================
 
 
 runs/
-└── 2026-07-24T22-48-56/
+└── 2026-07-24T23-30-53/
     ├── code.json
     ├── issue_facts.json
     ├── logs.txt

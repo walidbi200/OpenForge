@@ -3,23 +3,23 @@
   "tool_version": "0.1.0",
   "artifact": "ImplementationPlan",
   "generator": "openforge.agents.planner.PlannerAgent",
-  "created_at": "2026-07-24T22:51:07.584572+00:00",
+  "created_at": "2026-07-24T23:33:17.300318+00:00",
   "data_checksum": "sha256:ab4b0e153735731c216639ed3c6e490183fb588d37891599391d3282d583c092",
   "provenance": {
-    "run_id": "2026-07-24T22-50-25",
+    "run_id": "2026-07-24T23-33-15",
     "generator": "openforge.agents.planner.PlannerAgent",
     "source_artifacts": [
       {
         "artifact": "RepositoryContext",
         "file_name": "repository.json",
-        "run_id": "2026-07-24T22-50-25",
+        "run_id": "2026-07-24T23-33-15",
         "checksum": "sha256:3a2ac5dbbbe1ae0242994ec1ae244a84957b7dfbfad11810ba20b22acf0a2b7a"
       },
       {
         "artifact": "IssueFacts",
         "file_name": "issue_facts.json",
-        "run_id": "2026-07-24T22-50-25",
-        "checksum": "sha256:edbd9fbad5b43b4336fc5b60c75adee684ba3c83a913686f7dafaba72fd7761e"
+        "run_id": "2026-07-24T23-33-15",
+        "checksum": "sha256:3af4baa1781d1f36d0b6a97ba8467eadb60d8d5ecc0ff87319b12c3579c690f1"
       }
     ]
   },

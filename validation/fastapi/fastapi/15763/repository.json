@@ -3,10 +3,10 @@
   "tool_version": "0.1.0",
   "artifact": "RepositoryContext",
   "generator": "openforge.services.repository_analyzer.RepositoryAnalyzer",
-  "created_at": "2026-07-24T22:46:41.665185+00:00",
+  "created_at": "2026-07-24T23:29:52.967799+00:00",
   "data_checksum": "sha256:e64189bf0c02c6f34f1c53157b0412835998c2326b9274dffc49210510507f9d",
   "provenance": {
-    "run_id": "2026-07-24T22-46-41",
+    "run_id": "2026-07-24T23-29-52",
     "generator": "openforge.services.repository_analyzer.RepositoryAnalyzer",
     "source_artifacts": []
   },

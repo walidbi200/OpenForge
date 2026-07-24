@@ -30,49 +30,28 @@ index 7820777..383782e 100644
              dependencies=current_dependencies,
 diff --git a/tests/test_api_router.py b/tests/test_api_router.py
 new file mode 100644
-index 0000000..10cef85
+index 0000000..a2bd824
 --- /dev/null
 +++ b/tests/test_api_router.py
-@@ -0,0 +1,42 @@
+@@ -0,0 +1,21 @@
 +from fastapi import APIRouter, FastAPI
 +from fastapi.testclient import TestClient
 +
 +
-+class TestEmptyPathInPrefixlessRouter:
-+    def test_http_get_empty_path(self):
-+        router = APIRouter()
++def test_empty_path_in_prefixless_router():
++    router = APIRouter()
 +
-+        @router.get("")
-+        def read_root():
-+            return {"message": "Hello World"}
++    @router.get("")
++    def read_root():
++        return {"message": "Hello World"}
 +
-+        app = FastAPI()
-+        app.include_router(router)
++    app = FastAPI()
++    app.include_router(router)
 +
-+        client = TestClient(app)
-+        response = client.get("/")
-+        assert response.status_code == 200
-+        assert response.json() == {"message": "Hello World"}
++    client = TestClient(app)
++    response = client.get("/")
++    assert response.status_code == 200
++    assert response.json() == {"message": "Hello World"}
 +
-+        # The generated route path should be normalized to "/"
-+        assert router.routes[0].path == "/"
-+
-+    def test_websocket_empty_path(self):
-+        router = APIRouter()
-+
-+        @router.websocket("")
-+        async def websocket_endpoint(websocket):
-+            await websocket.accept()
-+            await websocket.send_text("Hello WebSocket")
-+            await websocket.close()
-+
-+        app = FastAPI()
-+        app.include_router(router)
-+
-+        client = TestClient(app)
-+        with client.websocket_connect("/") as websocket:
-+            data = websocket.receive_text()
-+            assert data == "Hello WebSocket"
-+
-+        # The generated route path should be normalized to "/"
-+        assert router.routes[0].path == "/"
++    route = router.routes[0]
++    assert route.path == "/"
