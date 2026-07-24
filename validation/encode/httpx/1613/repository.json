@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "tool_version": "0.1.0",
+  "artifact": "RepositoryContext",
+  "generator": "openforge.services.repository_analyzer.RepositoryAnalyzer",
+  "created_at": "2026-07-24T22:43:27.755656+00:00",
+  "data_checksum": "sha256:d7f69b8e2dfb72e72c12f9089d0c5c57dd1f25b607baff6eb7dddf707bd7c865",
+  "provenance": {
+    "run_id": "2026-07-24T22-43-27",
+    "generator": "openforge.services.repository_analyzer.RepositoryAnalyzer",
+    "source_artifacts": []
+  },
+  "data": {
+    "repo": "encode/httpx",
+    "source_path": "workspace/encode-httpx",
+    "language": "Python",
+    "package_manager": "pip",
+    "test_command": "pytest",
+    "formatter": "ruff",
+    "linter": "ruff",
+    "ci": "GitHub Actions",
+    "important_directories": [
+      "docs",
+      "httpx",
+      "scripts",
+      "tests"
+    ],
+    "evidence": {
+      "language_candidates": "pyproject.toml -> Python; requirements.txt -> Python; ",
+      "language": "found pyproject.toml",
+      "package_manager": "found requirements.txt (no lockfile)",
+      "test_command": "found pytest config or test_*.py files",
+      "formatter": "found ruff config",
+      "linter": "found ruff config",
+      "ci": "found workflow files in .github/workflows"
+    },
+    "conventions_summary": "This appears to be the Python project HTTPX, with the main package living under the `httpx` directory while `tests`, `docs`, and `scripts` hold the test suite, documentation, and development utilities respectively. The project uses `pip` for package management and a `requirements.txt` file was detected, though no lockfile was found. Tests are run with `pytest`, and `ruff` is configured as both the linter and the formatter, so any new code must pass `ruff` checks. Continuous integration runs via GitHub Actions."
+  }
+}

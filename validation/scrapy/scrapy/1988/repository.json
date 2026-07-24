@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "tool_version": "0.1.0",
+  "artifact": "RepositoryContext",
+  "generator": "openforge.services.repository_analyzer.RepositoryAnalyzer",
+  "created_at": "2026-07-24T22:39:01.083269+00:00",
+  "data_checksum": "sha256:f1d373ebb6a1b602e58d2d66563b776fdc64def138171e1859e4bd847a5befed",
+  "provenance": {
+    "run_id": "2026-07-24T22-39-01",
+    "generator": "openforge.services.repository_analyzer.RepositoryAnalyzer",
+    "source_artifacts": []
+  },
+  "data": {
+    "repo": "scrapy/scrapy",
+    "source_path": "workspace/scrapy-scrapy",
+    "language": "Python",
+    "test_command": "pytest",
+    "formatter": "ruff",
+    "linter": "ruff",
+    "ci": "GitHub Actions",
+    "important_directories": [
+      "docs",
+      "extras",
+      "scrapy",
+      "sep",
+      "tests",
+      "tests_typing"
+    ],
+    "evidence": {
+      "language_candidates": "pyproject.toml -> Python; ",
+      "language": "found pyproject.toml",
+      "test_command": "found pytest config or test_*.py files",
+      "formatter": "found ruff config",
+      "linter": "found ruff config",
+      "ci": "found workflow files in .github/workflows"
+    },
+    "conventions_summary": "This looks like the Python-based Scrapy project, with its main package code under the `scrapy/` directory, test suites organized into `tests/` and `tests_typing/`, and documentation stored in `docs/`. The repository also includes `extras/` and `sep/` top-level directories, though their exact purpose was not detected. New contributors should run the test suite with pytest and ensure any code changes pass the project's `ruff` linter and formatter checks. Because CI is handled through GitHub Actions, submitted changes will be validated by automated workflows. Since there is a separate `tests_typing` directory, you should verify whether your changes need type-specific test coverage."
+  }
+}

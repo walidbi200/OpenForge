@@ -1,0 +1,8 @@
+
+--- CMD: uv run openforge inspect https://github.com/psf/requests ---
+
+--- CMD: uv run openforge analyze-issue https://github.com/psf/requests/issues/5921 --run 2026-07-24T22-41-22 ---
+
+--- CMD: uv run openforge plan https://github.com/psf/requests/issues/5921 --run 2026-07-24T22-41-22 ---
+
+--- CMD: uv run openforge code --run 2026-07-24T22-41-22 --force ---

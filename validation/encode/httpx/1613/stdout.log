@@ -1,0 +1,207 @@
+
+--- CMD: uv run openforge inspect https://github.com/encode/httpx ---
+[23:43:27] INFO     Using existing clone at workspace/encode-httpx (delete it to
+                    re-clone)                                                   
+           INFO     HTTP Request: POST                                          
+                    https://inference.dahl.global/v1/chat/completions "HTTP/1.1 
+                    200 OK"                                                     
+                    RepositoryAnalyzer report — encode/httpx                    
+┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Field           ┃ Detected       ┃ Evidence                                  ┃
+┡━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ language        │ Python         │ found pyproject.toml                      │
+│ framework       │ not detected   │                                           │
+│ package_manager │ pip            │ found requirements.txt (no lockfile)      │
+│ test_command    │ pytest         │ found pytest config or test_*.py files    │
+│ formatter       │ ruff           │ found ruff config                         │
+│ linter          │ ruff           │ found ruff config                         │
+│ ci              │ GitHub Actions │ found workflow files in .github/workflows │
+└─────────────────┴────────────────┴───────────────────────────────────────────┘
+
+Top-level directories: docs, httpx, scripts, tests
+
+Conventions summary:
+This appears to be the Python project HTTPX, with the main package living under 
+the `httpx` directory while `tests`, `docs`, and `scripts` hold the test suite, 
+documentation, and development utilities respectively. The project uses `pip` 
+for package management and a `requirements.txt` file was detected, though no 
+lockfile was found. Tests are run with `pytest`, and `ruff` is configured as 
+both the linter and the formatter, so any new code must pass `ruff` checks. 
+Continuous integration runs via GitHub Actions.
+
+✓ Repository analyzed
+
+runs/
+└── 2026-07-24T22-43-27/
+    ├── logs.txt
+    ├── manifest.json
+    ├── repository.json
+    └── summary.md
+
+--- CMD: uv run openforge analyze-issue https://github.com/encode/httpx/issues/1613 --run 2026-07-24T22-43-27 ---
+Issue: encode/httpx#1613
+✓ Loaded repository context from runs/2026-07-24T22-43-27/
+[23:43:28] INFO     HTTP Request: GET                                           
+                    https://api.github.com/repos/encode/httpx/issues/1613       
+                    "HTTP/1.1 200 OK"                                           
+✓ Issue fetched: 'Add missing `timeout=...` to top-level `httpx.stream()` 
+function.'
+✓ Facts extracted
+✓ Issue analyzed
+IssueExtractor report — #1613
+┏━━━━━━━━━━━━━━━━━━━┳━━━━━━━┓
+┃ Field             ┃ Value ┃
+┡━━━━━━━━━━━━━━━━━━━╇━━━━━━━┩
+│ issue_type        │ bug   │
+│ has_traceback     │ no    │
+│ has_reproduction  │ no    │
+│ mentioned_files   │ 0     │
+│ code_blocks       │ 0     │
+│ checklist_items   │ 0     │
+│ referenced_issues │ 1     │
+│ tracebacks        │ 0     │
+│ labels            │ bug   │
+└───────────────────┴───────┘
+
+runs/
+└── 2026-07-24T22-43-27/
+    ├── issue_facts.json
+    ├── logs.txt
+    ├── manifest.json
+    ├── repository.json
+    └── summary.md
+
+--- CMD: uv run openforge plan https://github.com/encode/httpx/issues/1613 --run 2026-07-24T22-43-27 ---
+Planning: encode/httpx#1613
+✓ Loaded repository context from runs/2026-07-24T22-43-27/
+✓ Loaded issue facts from runs/2026-07-24T22-43-27/
+[23:43:33] INFO     HTTP Request: POST                                          
+                    https://inference.dahl.global/v1/chat/completions "HTTP/1.1 
+                    200 OK"                                                     
+✓ Plan generated
+
+⚠  requires_human = true  A human must review this plan before code generation 
+proceeds.
+
+Goal
+Add the missing `timeout` parameter forwarding to the top-level `httpx.stream()`
+function so user-provided timeout values are correctly passed through to the 
+underlying Client stream instead of being silently ignored.
+
+Files to modify
+  • httpx/_api.py
+
+Implementation steps
+  1. Step 1: In `httpx/_api.py`, add `timeout=None` (or equivalent default) to 
+the `stream()` function signature alongside other keyword arguments like `auth`,
+`proxies`, `cookies`, etc.
+  2. Step 2: In the body of `httpx/_api.py::stream()`, locate the `Client()` 
+instantiation or the `client.stream()` call and add `timeout=timeout` to the 
+keyword arguments being forwarded so the user-provided value reaches the 
+transport layer.
+
+Tests to run
+  $ pytest tests/client/test_client.py -k timeout
+  $ pytest tests/ -k stream
+
+Risks
+  ⚠  If `httpx/__init__.py` re-exports `stream` with an explicit `__all__` or a 
+type-stub re-declares the signature, those locations may need updating to match 
+the new parameter, but the primary runtime fix is contained within 
+`httpx/_api.py`.
+
+runs/
+└── 2026-07-24T22-43-27/
+    ├── issue_facts.json
+    ├── logs.txt
+    ├── manifest.json
+    ├── plan.json
+    ├── prompt_metrics.json
+    ├── repository.json
+    └── summary.md
+
+--- CMD: uv run openforge code --run 2026-07-24T22-43-27 --force ---
+✓ Loaded repository context from runs/2026-07-24T22-43-27/
+✓ Loaded plan from runs/2026-07-24T22-43-27/
+[23:44:16] WARNING  Proceeding with requires_human=True plan due to --force     
+                    flag.                                                       
+           WARNING  Working tree not clean. Resetting and cleaning...           
+[23:44:17] INFO     HTTP Request: POST                                          
+                    https://inference.dahl.global/v1/chat/completions "HTTP/1.1 
+                    200 OK"                                                     
+[23:44:51] INFO     LLM returned 1356 bytes                                     
+           INFO     Parsing LLM response...                                     
+           INFO     Parsed 1 edits                                              
+           INFO     Wrote httpx/_api.py (11772 bytes)                           
+           INFO     Running git diff...                                         
+           INFO     Running git diff --name-only...                             
+           INFO     Running tests...                                            
+           INFO     Running test securely inside Docker container.              
+[23:45:47] INFO     Running test securely inside Docker container.              
+[23:46:40] INFO     Finished running tests                                      
+✓ Code generated
+
+Branch: openforge/1613-add-the-missing-timeout-parame
+
+Git diff:
+diff --git a/httpx/_api.py b/httpx/_api.py
+index c3cda1e..2586f71 100644
+--- a/httpx/_api.py
++++ b/httpx/_api.py
+@@ -167,6 +167,7 @@ def stream(
+             headers=headers,
+             auth=auth,
+             follow_redirects=follow_redirects,
++            timeout=timeout,
+         ) as response:
+             yield response
+ 
+
+
+Tests: pytest tests/client/test_client.py -k timeout  →  FAILED (exit 5)
+============================= test session starts ==============================
+platform linux -- Python 3.11.15, pytest-8.4.1, pluggy-1.6.0
+rootdir: /repo
+configfile: pyproject.toml
+plugins: anyio-4.14.2, hypothesis-6.161.2, Faker-40.36.0, asyncio-1.4.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None,
+asyncio_default_test_loop_scope=function
+collected 35 items / 35 deselected / 0 selected
+
+============================ 35 deselected in 0.80s ============================
+
+
+Tests: pytest tests/ -k stream  →  PASSED (exit 0)
+============================= test session starts ==============================
+platform linux -- Python 3.11.15, pytest-8.4.1, pluggy-1.6.0
+rootdir: /repo
+configfile: pyproject.toml
+plugins: anyio-4.14.2, hypothesis-6.161.2, Faker-40.36.0, asyncio-1.4.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None,
+asyncio_default_test_loop_scope=function
+collected 1418 items / 1378 deselected / 40 selected
+
+tests/client/test_async_client.py ..........                             [ 25%]
+tests/client/test_auth.py ....                                           [ 35%]
+tests/client/test_client.py ...                                          [ 42%]
+tests/client/test_redirects.py ..                                        [ 47%]
+tests/models/test_requests.py ......                                     [ 62%]
+tests/models/test_responses.py ........                                  [ 82%]
+tests/test_api.py ..                                                     [ 87%]
+tests/test_decoders.py ...                                               [ 95%]
+tests/test_multipart.py .                                                [ 97%]
+tests/test_wsgi.py .                                                     [100%]
+
+===================== 40 passed, 1378 deselected in 2.30s ======================
+
+
+runs/
+└── 2026-07-24T22-43-27/
+    ├── code.json
+    ├── issue_facts.json
+    ├── logs.txt
+    ├── manifest.json
+    ├── plan.json
+    ├── prompt_metrics.json
+    ├── repository.json
+    └── summary.md

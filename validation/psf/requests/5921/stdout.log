@@ -1,0 +1,268 @@
+
+--- CMD: uv run openforge inspect https://github.com/psf/requests ---
+[23:41:22] INFO     Using existing clone at workspace/psf-requests (delete it to
+                    re-clone)                                                   
+           INFO     HTTP Request: POST                                          
+                    https://inference.dahl.global/v1/chat/completions "HTTP/1.1 
+                    200 OK"                                                     
+                    RepositoryAnalyzer report — psf/requests                    
+┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Field           ┃ Detected       ┃ Evidence                                  ┃
+┡━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ language        │ Python         │ found pyproject.toml                      │
+│ framework       │ not detected   │                                           │
+│ package_manager │ not detected   │                                           │
+│ test_command    │ pytest         │ found pytest config or test_*.py files    │
+│ formatter       │ ruff           │ found ruff config                         │
+│ linter          │ ruff           │ found ruff config                         │
+│ ci              │ GitHub Actions │ found workflow files in .github/workflows │
+└─────────────────┴────────────────┴───────────────────────────────────────────┘
+
+Top-level directories: docs, ext, src, tests
+
+Conventions summary:
+This is the psf/requests repository, a Python project. The top-level directories
+docs, ext, src, and tests suggest source code is under src/, tests are under 
+tests/, and documentation is in docs/; the purpose of ext/ was not detected from
+the directory list alone. The project uses pytest for testing, ruff for both 
+linting and formatting, and GitHub Actions for continuous integration. New 
+contributors should run the test suite with pytest and ensure their changes pass
+ruff's linting and formatting checks. Details about the build system beyond the 
+presence of pyproject.toml and setup.py were not detected, so you should read 
+those files to understand dependencies and packaging.
+
+✓ Repository analyzed
+
+runs/
+└── 2026-07-24T22-41-22/
+    ├── logs.txt
+    ├── manifest.json
+    ├── repository.json
+    └── summary.md
+
+--- CMD: uv run openforge analyze-issue https://github.com/psf/requests/issues/5921 --run 2026-07-24T22-41-22 ---
+Issue: psf/requests#5921
+✓ Loaded repository context from runs/2026-07-24T22-41-22/
+[23:41:23] INFO     HTTP Request: GET                                           
+                    https://api.github.com/repos/psf/requests/issues/5921       
+                    "HTTP/1.1 200 OK"                                           
+✓ Issue fetched: 'requests should ignore REQUESTS_CA_BUNDLE when session.verify 
+is False'
+✓ Facts extracted
+✓ Issue analyzed
+         IssueExtractor report — #5921          
+┏━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Field             ┃ Value                    ┃
+┡━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ issue_type        │ bug                      │
+│ has_traceback     │ no                       │
+│ has_reproduction  │ yes                      │
+│ mentioned_files   │ 1                        │
+│ code_blocks       │ 0                        │
+│ checklist_items   │ 0                        │
+│ referenced_issues │ 0                        │
+│ tracebacks        │ 0                        │
+│ labels            │ Bug, Breaking API Change │
+└───────────────────┴──────────────────────────┘
+
+Mentioned files:
+  • 
+github.com/psf/requests/blob/b0e025ade7ed30ed53ab61f542779af7e024932e/requests/s
+essions.py
+
+runs/
+└── 2026-07-24T22-41-22/
+    ├── issue_facts.json
+    ├── logs.txt
+    ├── manifest.json
+    ├── repository.json
+    └── summary.md
+
+--- CMD: uv run openforge plan https://github.com/psf/requests/issues/5921 --run 2026-07-24T22-41-22 ---
+Planning: psf/requests#5921
+✓ Loaded repository context from runs/2026-07-24T22-41-22/
+✓ Loaded issue facts from runs/2026-07-24T22-41-22/
+[23:41:24] INFO     HTTP Request: POST                                          
+                    https://inference.dahl.global/v1/chat/completions "HTTP/1.1 
+                    200 OK"                                                     
+✓ Plan generated
+
+⚠  requires_human = true  A human must review this plan before code generation 
+proceeds.
+
+Goal
+Fix the requests Session so that environment variables REQUESTS_CA_BUNDLE and 
+CURL_CA_BUNDLE are ignored when self.verify is explicitly set to False, by 
+resolving None verify kwargs against self.verify before checking environment CA 
+bundles.
+
+Files to modify
+  • src/requests/sessions.py
+
+Implementation steps
+  1. Step 1: In src/requests/sessions.py, modify 
+Session.merge_environment_settings. Immediately before the existing block that 
+checks verify is True or verify is None against the environment CA bundles, add 
+an assignment: if verify is None: verify = self.verify. This ensures the 
+session-level verify setting is consulted before the environment override logic 
+runs.
+  2. Step 2: In src/requests/sessions.py, update the existing environment CA 
+bundle check inside merge_environment_settings to only apply env bundles when 
+verify is True or None (keeping the existing condition, which now correctly 
+skips application when verify is False or a string path).
+  3. Step 3: Add a unit test in tests/test_requests.py that creates a Session 
+with verify=False, sets the REQUESTS_CA_BUNDLE environment variable to an 
+invalid path, and asserts that making a request does not raise an exception 
+related to the invalid CA bundle path.
+
+Tests to run
+  $ pytest tests/test_requests.py
+
+Risks
+  ⚠  There is a small risk that downstream code relies on the current behavior 
+where a session with verify=None (default) and REQUESTS_CA_BUNDLE set would 
+still apply the env bundle even if session.verify were later mutated to False, 
+though this is exactly the bug being fixed.
+
+runs/
+└── 2026-07-24T22-41-22/
+    ├── issue_facts.json
+    ├── logs.txt
+    ├── manifest.json
+    ├── plan.json
+    ├── prompt_metrics.json
+    ├── repository.json
+    └── summary.md
+
+--- CMD: uv run openforge code --run 2026-07-24T22-41-22 --force ---
+✓ Loaded repository context from runs/2026-07-24T22-41-22/
+✓ Loaded plan from runs/2026-07-24T22-41-22/
+[23:41:49] WARNING  Proceeding with requires_human=True plan due to --force     
+                    flag.                                                       
+[23:41:50] INFO     HTTP Request: POST                                          
+                    https://inference.dahl.global/v1/chat/completions "HTTP/1.1 
+                    200 OK"                                                     
+[23:42:18] INFO     LLM returned 1159 bytes                                     
+           INFO     Parsing LLM response...                                     
+           INFO     Parsed 1 edits                                              
+           INFO     Wrote src/requests/sessions.py (34140 bytes)                
+           INFO     Running git diff...                                         
+           INFO     Running git diff --name-only...                             
+           INFO     Running tests...                                            
+           INFO     Running test securely inside Docker container.              
+[23:43:26] INFO     Finished running tests                                      
+✓ Code generated
+
+Branch: openforge/5921-fix-the-requests-session-so-th
+
+Git diff:
+diff --git a/src/requests/sessions.py b/src/requests/sessions.py
+index d11355b..65dc386 100644
+--- a/src/requests/sessions.py
++++ b/src/requests/sessions.py
+@@ -852,6 +852,8 @@ class Session(SessionRedirectMixin):
+ 
+             # Look for requests environment configuration
+             # and be compatible with cURL.
++            if verify is None:
++                verify = self.verify
+             if verify is True or verify is None:
+                 verify = (
+                     os.environ.get("REQUESTS_CA_BUNDLE")
+
+
+Tests: pytest tests/test_requests.py  →  FAILED (exit 1)
+OSError) as err:
+            raise ConnectionError(err, request=request)
+    
+        except MaxRetryError as e:
+            if isinstance(e.reason, ConnectTimeoutError):
+                # TODO: Remove this in 3.0.0: see #2811
+                if not isinstance(e.reason, NewConnectionError):
+                    raise ConnectTimeout(e, request=request)
+    
+            if isinstance(e.reason, ResponseError):
+                raise RetryError(e, request=request)
+    
+            if isinstance(e.reason, _ProxyError):
+                raise ProxyError(e, request=request)
+    
+            if isinstance(e.reason, _SSLError):
+                # This branch is for urllib3 v1.22 and later.
+                raise SSLError(e, request=request)
+    
+>           raise ConnectionError(e, request=request)
+E           requests.exceptions.ConnectionError: 
+HTTPConnectionPool(host='10.255.255.1', port=80): Max retries exceeded with url:
+/ (Caused by NewConnectionError("HTTPConnection(host='10.255.255.1', port=80): 
+Failed to establish a new connection: [Errno 113] No route to host"))
+
+src/requests/adapters.py:729: ConnectionError
+=============================== warnings summary ===============================
+tests/test_requests.py::TestRequests::test_set_basicauth[42-42]
+tests/test_requests.py::TestRequests::test_set_basicauth[42-42]
+  /repo/src/requests/auth.py:45: DeprecationWarning: Non-string usernames will 
+no longer be supported in Requests 3.0.0. Please convert the object you've 
+passed in (42) to a string or bytes object in the near future to avoid problems.
+    warnings.warn(
+
+tests/test_requests.py::TestRequests::test_set_basicauth[42-42]
+tests/test_requests.py::TestRequests::test_set_basicauth[42-42]
+  /repo/src/requests/auth.py:55: DeprecationWarning: Non-string passwords will 
+no longer be supported in Requests 3.0.0. Please convert the object you've 
+passed in (<class 'int'>) to a string or bytes object in the near future to 
+avoid problems.
+    warnings.warn(
+
+tests/test_requests.py::TestRequests::test_set_basicauth[None-None]
+tests/test_requests.py::TestRequests::test_set_basicauth[None-None]
+  /repo/src/requests/auth.py:45: DeprecationWarning: Non-string usernames will 
+no longer be supported in Requests 3.0.0. Please convert the object you've 
+passed in (None) to a string or bytes object in the near future to avoid 
+problems.
+    warnings.warn(
+
+tests/test_requests.py::TestRequests::test_set_basicauth[None-None]
+tests/test_requests.py::TestRequests::test_set_basicauth[None-None]
+  /repo/src/requests/auth.py:55: DeprecationWarning: Non-string passwords will 
+no longer be supported in Requests 3.0.0. Please convert the object you've 
+passed in (<class 'NoneType'>) to a string or bytes object in the near future to
+avoid problems.
+    warnings.warn(
+
+tests/test_requests.py::TestPreparingURLs::test_different_connection_pool_for_tl
+s_settings_verify_True
+tests/test_requests.py::TestPreparingURLs::test_different_connection_pool_for_tl
+s_settings_verify_bundle_expired_cert
+tests/test_requests.py::TestPreparingURLs::test_different_connection_pool_for_tl
+s_settings_verify_bundle_unexpired_cert
+tests/test_requests.py::TestPreparingURLs::test_different_connection_pool_for_mt
+ls_settings
+  /usr/local/lib/python3.11/site-packages/urllib3/connectionpool.py:1110: 
+InsecureRequestWarning: Unverified HTTPS request is being made to host 
+'localhost'. Adding certificate verification is strongly advised. See: 
+https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_requests.py::TestTimeout::test_connect_timeout - ...
+FAILED tests/test_requests.py::TestTimeout::test_total_timeout_connect
+FAILED tests/test_requests.py::TestTimeout::test_total_timeout_connect
+====== 3 failed, 336 passed, 1 skipped, 1 xfailed, 12 warnings in 41.68s =======
+
+stderr:
+[2026-07-24 22:42:44,065] WARNING in core: flasgger is not installed; serving 
+the static landing page at / and skipping the Swagger UI and /spec.json.
+
+
+runs/
+└── 2026-07-24T22-41-22/
+    ├── code.json
+    ├── issue_facts.json
+    ├── logs.txt
+    ├── manifest.json
+    ├── plan.json
+    ├── prompt_metrics.json
+    ├── repository.json
+    └── summary.md

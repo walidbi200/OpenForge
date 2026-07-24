@@ -1,0 +1,118 @@
+                                            
+           INFO     Running test securely inside Docker container.              
+[23:43:26] INFO     Finished running tests                                      
+✓ Code generated
+
+Branch: openforge/5921-fix-the-requests-session-so-th
+
+Git diff:
+diff --git a/src/requests/sessions.py b/src/requests/sessions.py
+index d11355b..65dc386 100644
+--- a/src/requests/sessions.py
++++ b/src/requests/sessions.py
+@@ -852,6 +852,8 @@ class Session(SessionRedirectMixin):
+ 
+             # Look for requests environment configuration
+             # and be compatible with cURL.
++            if verify is None:
++                verify = self.verify
+             if verify is True or verify is None:
+                 verify = (
+                     os.environ.get("REQUESTS_CA_BUNDLE")
+
+
+Tests: pytest tests/test_requests.py  →  FAILED (exit 1)
+OSError) as err:
+            raise ConnectionError(err, request=request)
+    
+        except MaxRetryError as e:
+            if isinstance(e.reason, ConnectTimeoutError):
+                # TODO: Remove this in 3.0.0: see #2811
+                if not isinstance(e.reason, NewConnectionError):
+                    raise ConnectTimeout(e, request=request)
+    
+            if isinstance(e.reason, ResponseError):
+                raise RetryError(e, request=request)
+    
+            if isinstance(e.reason, _ProxyError):
+                raise ProxyError(e, request=request)
+    
+            if isinstance(e.reason, _SSLError):
+                # This branch is for urllib3 v1.22 and later.
+                raise SSLError(e, request=request)
+    
+>           raise ConnectionError(e, request=request)
+E           requests.exceptions.ConnectionError: 
+HTTPConnectionPool(host='10.255.255.1', port=80): Max retries exceeded with url:
+/ (Caused by NewConnectionError("HTTPConnection(host='10.255.255.1', port=80): 
+Failed to establish a new connection: [Errno 113] No route to host"))
+
+src/requests/adapters.py:729: ConnectionError
+=============================== warnings summary ===============================
+tests/test_requests.py::TestRequests::test_set_basicauth[42-42]
+tests/test_requests.py::TestRequests::test_set_basicauth[42-42]
+  /repo/src/requests/auth.py:45: DeprecationWarning: Non-string usernames will 
+no longer be supported in Requests 3.0.0. Please convert the object you've 
+passed in (42) to a string or bytes object in the near future to avoid problems.
+    warnings.warn(
+
+tests/test_requests.py::TestRequests::test_set_basicauth[42-42]
+tests/test_requests.py::TestRequests::test_set_basicauth[42-42]
+  /repo/src/requests/auth.py:55: DeprecationWarning: Non-string passwords will 
+no longer be supported in Requests 3.0.0. Please convert the object you've 
+passed in (<class 'int'>) to a string or bytes object in the near future to 
+avoid problems.
+    warnings.warn(
+
+tests/test_requests.py::TestRequests::test_set_basicauth[None-None]
+tests/test_requests.py::TestRequests::test_set_basicauth[None-None]
+  /repo/src/requests/auth.py:45: DeprecationWarning: Non-string usernames will 
+no longer be supported in Requests 3.0.0. Please convert the object you've 
+passed in (None) to a string or bytes object in the near future to avoid 
+problems.
+    warnings.warn(
+
+tests/test_requests.py::TestRequests::test_set_basicauth[None-None]
+tests/test_requests.py::TestRequests::test_set_basicauth[None-None]
+  /repo/src/requests/auth.py:55: DeprecationWarning: Non-string passwords will 
+no longer be supported in Requests 3.0.0. Please convert the object you've 
+passed in (<class 'NoneType'>) to a string or bytes object in the near future to
+avoid problems.
+    warnings.warn(
+
+tests/test_requests.py::TestPreparingURLs::test_different_connection_pool_for_tl
+s_settings_verify_True
+tests/test_requests.py::TestPreparingURLs::test_different_connection_pool_for_tl
+s_settings_verify_bundle_expired_cert
+tests/test_requests.py::TestPreparingURLs::test_different_connection_pool_for_tl
+s_settings_verify_bundle_unexpired_cert
+tests/test_requests.py::TestPreparingURLs::test_different_connection_pool_for_mt
+ls_settings
+  /usr/local/lib/python3.11/site-packages/urllib3/connectionpool.py:1110: 
+InsecureRequestWarning: Unverified HTTPS request is being made to host 
+'localhost'. Adding certificate verification is strongly advised. See: 
+https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_requests.py::TestTimeout::test_connect_timeout - ...
+FAILED tests/test_requests.py::TestTimeout::test_total_timeout_connect
+FAILED tests/test_requests.py::TestTimeout::test_total_timeout_connect
+====== 3 failed, 336 passed, 1 skipped, 1 xfailed, 12 warnings in 41.68s =======
+
+stderr:
+[2026-07-24 22:42:44,065] WARNING in core: flasgger is not installed; serving 
+the static landing page at / and skipping the Swagger UI and /spec.json.
+
+
+runs/
+└── 2026-07-24T22-41-22/
+    ├── code.json
+    ├── issue_facts.json
+    ├── logs.txt
+    ├── manifest.json
+    ├── plan.json
+    ├── prompt_metrics.json
+    ├── repository.json
+    └── summary.md

@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "tool_version": "0.1.0",
+  "artifact": "ImplementationPlan",
+  "generator": "openforge.agents.planner.PlannerAgent",
+  "created_at": "2026-07-24T22:47:07.474375+00:00",
+  "data_checksum": "sha256:152169f396023c4bc1c9c85e775572b942b512916fc5201c024824f19c4aba91",
+  "provenance": {
+    "run_id": "2026-07-24T22-46-41",
+    "generator": "openforge.agents.planner.PlannerAgent",
+    "source_artifacts": [
+      {
+        "artifact": "RepositoryContext",
+        "file_name": "repository.json",
+        "run_id": "2026-07-24T22-46-41",
+        "checksum": "sha256:e64189bf0c02c6f34f1c53157b0412835998c2326b9274dffc49210510507f9d"
+      },
+      {
+        "artifact": "IssueFacts",
+        "file_name": "issue_facts.json",
+        "run_id": "2026-07-24T22-46-41",
+        "checksum": "sha256:6f6f40634f199beba4b08eae7ac670435290e7343b2da2221cc2f704faa9c6e7"
+      }
+    ]
+  },
+  "data": {
+    "goal": "Fix a bug in FastAPI's APIRouter that prevents using an empty path (\"\") in a path operation when the router has no prefix, by correcting path normalization logic in the routing layer.",
+    "edit_targets": [
+      {
+        "file_path": "fastapi/routing.py",
+        "is_required": true,
+        "expected_edit_locations": [
+          "APIRouter.add_api_route",
+          "APIRouter.add_api_websocket_route"
+        ],
+        "expected_function_names": [
+          "add_api_route",
+          "add_api_websocket_route"
+        ],
+        "expected_behavior_change": "Allow empty string path values in route definitions when the router prefix is empty, normalizing the final route path to '/' or correctly concatenating with the router prefix without raising an unintended error."
+      },
+      {
+        "file_path": "tests/test_api_router.py",
+        "is_required": true,
+        "expected_edit_locations": [
+          "test_empty_path_in_prefixless_router"
+        ],
+        "expected_function_names": [],
+        "expected_behavior_change": "Add tests verifying that defining a GET route with an empty path on a prefixless router succeeds and matches the root path correctly."
+      }
+    ],
+    "implementation_steps": [
+      "Step 1: In fastapi/routing.py, modify the APIRouter.add_api_route method to remove or relax any validation or string concatenation logic that rejects or corrupts an empty path string when self.prefix is empty or None. Ensure the path is normalized to a valid route string (e.g., resolving to '/') before passing it downstream.",
+      "Step 2: In fastapi/routing.py, apply the same path handling correction to APIRouter.add_api_websocket_route so WebSocket routes also support empty paths in prefixless routers.",
+      "Step 3: In tests/test_api_router.py, add a test case that creates an APIRouter without a prefix, defines an operation using an empty path (e.g., router.get('')), and asserts that the generated route path is '/' and that client requests to '/' return the expected response.",
+      "Step 4: Run tests to confirm the new test fails on the main branch and passes after the fix, ensuring 100% coverage is maintained and no regressions occur in prefixed router behavior."
+    ],
+    "tests_to_run": [
+      "pytest tests/test_api_router.py -v"
+    ],
+    "risks": [
+      "Changing path normalization may inadvertently affect how prefixed routers concatenate empty paths, so prefixed router tests must pass unchanged.",
+      "Starlette expects paths to start with '/', so the empty path must be normalized to '/' before route registration to avoid runtime routing errors."
+    ],
+    "requires_human": true
+  }
+}

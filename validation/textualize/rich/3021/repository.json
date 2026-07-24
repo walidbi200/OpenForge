@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "tool_version": "0.1.0",
+  "artifact": "RepositoryContext",
+  "generator": "openforge.services.repository_analyzer.RepositoryAnalyzer",
+  "created_at": "2026-07-24T22:48:56.779883+00:00",
+  "data_checksum": "sha256:9fc0d975a999d47fa0e7e2c7020ec5efa6979d26e40dac45ecab075e89ea7a1b",
+  "provenance": {
+    "run_id": "2026-07-24T22-48-56",
+    "generator": "openforge.services.repository_analyzer.RepositoryAnalyzer",
+    "source_artifacts": []
+  },
+  "data": {
+    "repo": "textualize/rich",
+    "source_path": "workspace/textualize-rich",
+    "language": "Python",
+    "package_manager": "poetry",
+    "test_command": "pytest",
+    "ci": "GitHub Actions",
+    "important_directories": [
+      "assets",
+      "benchmarks",
+      "docs",
+      "examples",
+      "imgs",
+      "questions",
+      "rich",
+      "tests",
+      "tools"
+    ],
+    "evidence": {
+      "language_candidates": "pyproject.toml -> Python; setup.py -> Python; ",
+      "language": "found pyproject.toml",
+      "package_manager": "found poetry.lock",
+      "test_command": "found pytest config or test_*.py files",
+      "ci": "found workflow files in .github/workflows"
+    },
+    "conventions_summary": "This looks like a Python library managed with Poetry, where the `rich/` directory likely contains the main package code alongside sibling directories including `tests/`, `docs/`, `examples/`, `benchmarks/`, `tools/`, `assets/`, `imgs/`, and `questions/`. You should run the test suite with `pytest`, and the project uses GitHub Actions for continuous integration. No linter was detected, so match the existing code style by hand rather than assuming an enforced auto-formatter or linter. Otherwise, use Poetry for dependency management and follow the existing patterns in the source and test directories when making changes."
+  }
+}

@@ -1,0 +1,18 @@
+run_id: 2026-07-23T14-14-58
+target: https://github.com/scrapy/scrapy
+repo: scrapy/scrapy
+language: Python
+framework: None
+package_manager: None
+test_command: pytest
+formatter: ruff
+linter: ruff
+ci: GitHub Actions
+
+issue_url: https://github.com/scrapy/scrapy/issues/1988
+issue_number: 1988
+issue_type: feature
+has_traceback: False
+has_reproduction_steps: False
+mentioned_files: 1
+checklist_items: 0

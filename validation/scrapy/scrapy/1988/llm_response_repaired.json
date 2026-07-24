@@ -1,0 +1,162 @@
+{"body": decoded_body}
+    if issubclass(respcls, TextResponse):
+        kwargs["encoding"] = None
+    response = response.replace(cls=respcls, **kwargs)
+    if not content_encoding:
+        del response.headers["Content-Encoding"]
+```
+
+Wait, after `response = response.replace(cls=respcls, **kwargs)`, does `response.headers` still have the modified header? Yes, because `replace` copies headers.
+
+But the key issue is: we want to preserve the **original** `Content-Encoding` header. So we shouldn't be setting it to the remaining unsupported encodings, and we shouldn't delete it when all encodings were decoded.
+
+So we need to remove:
+1. `response.headers["Content-Encoding"] = content_encoding`
+2. `if not content_encoding: del response.headers["Content-Encoding"]`
+
+But wait, there's a subtlety: what if `content_encoding` (unsupported encodings) is non-empty? The original code sets `response.headers["Content-Encoding"] = content_encoding` to reflect that the body is still encoded with those. If we remove this, we'll keep the original full header (e.g., `gzip, foo`), but the body has been stripped of gzip, leaving only `foo`-encoded data. Is that problematic? The task says "Preserve the original 'Content-Encoding' response header ... instead of stripping it after decompression." This implies we keep the original regardless.
+
+However, looking at the test file (which I don't have the current content of), I need to write tests asserting it's still present. The task says I need to change the test file too. But the test file content was not provided in the prompt! 
+
+Wait, the prompt says:
+"## Files to Change
+For each file listed below, you are given its current content (if it exists)."
+
+And it only lists:
+- `scrapy/downloadermiddlewares/httpcompression.py`
+
+It mentions tests in Step 3, but doesn't give me the test file content. However, the Output Format says "Every file in the list above must appear in `files`." But the list only has one file. Wait, let me re-read...
+
+Actually, looking back at the prompt, under "Files to Change" it lists only one file with its content. It also says "Every file in the list above must appear in `files`." 
+
+But Step 3 says: "Update tests in tests/test_downloadermiddleware_httpcompression.py"
+
+This is a contradiction - the test file isn't in the provided file list, but the implementation steps mention it. The instructions say "You may ONLY return files that appear in the list below." Since the test file does not appear in the list below, I cannot modify it.
+
+Wait, let me re-read carefully. "Every file in the list above must appear in files." The list above only contains `scrapy/downloadermiddlewares/httpcompression.py`. So I only need to modify that file. But the implementation steps mention updating tests. Since the test file isn't provided and isn't in the list, I might not be able to complete step 3. But the prompt says I must implement the code change described in the ImplementationPlan. If the test file isn't in the list, maybe I should only modify the listed file.
+
+But the instruction also says "If a file is listed but does not currently exist, mark its action as 'create'". The test file is not listed. So I should not create it.
+
+Wait, actually looking at the prompt structure:
+"## Files to Change
+For each file listed below, you are given its current content (if it exists)."
+
+Then it lists only:
+"### scrapy/downloadermiddlewares/httpcompression.py"
+
+It does not list the test file. This is unusual because the implementation plan step 3 mentions tests. But I must follow the constraint: "You may ONLY return files that appear in the list below." So I can only return the middleware file.
+
+But wait, the implementation steps are descriptive of the goal. The "Files to Change" section is the authoritative list of what I can output. So I will only modify `scrapy/downloadermiddlewares/httpcompression.py`.
+
+Now, what exactly to change? I need to preserve the original Content-Encoding header. Let's look at the exact lines.
+
+Lines to change:
+```python
+            if content_encoding:
+                self._warn_unknown_encoding(response, content_encoding)
+            response.headers["Content-Encoding"] = content_encoding
+            if self.stats:
+```
+
+and
+
+```python
+            response = response.replace(cls=respcls, **kwargs)
+            if not content_encoding:
+                del response.headers["Content-Encoding"]
+```
+
+If I remove the line `response.headers["Content-Encoding"] = content_encoding` and the block `if not content_encoding: del response.headers["Content-Encoding"]`, the original header will be preserved.
+
+But wait, does `response.replace(cls=respcls, **kwargs)` preserve headers? Let me think about Scrapy's Response implementation. `Response.replace` typically does:
+
+```python
+def replace(self, **kwargs):
+    for x in ['url', 'status', 'headers', 'body', 'request', 'flags']:
+        kwargs.setdefault(x, getattr(self, x))
+    cls = kwargs.pop('cls', self.__class__)
+    return cls(**kwargs)
+```
+
+Actually, I'm not 100% sure but typically it copies all attributes. So headers should be preserved from the original response object. Since we didn't modify the header on the original response object (if we remove that line), the new response will also have the original header.
+
+Wait, but in Scrapy's Response:
+```python
+def replace(self, *args, **kwargs):
+    """Create a new Response with the same attributes except for those
+    given new values.
+    """
+    for x in ['url', 'status', 'headers', 'body', 'request', 'flags']:
+        kwargs.setdefault(x, getattr(self, x))
+    cls = kwargs.pop('cls', self.__class__)
+    return cls(**kwargs)
+```
+
+Yes, it copies headers. So if we don't delete or modify `response.headers["Content-Encoding"]` before calling `replace`, the replaced response will have the original header.
+
+So the fix is to remove the two lines that touch `Content-Encoding`. But we also need to keep the `if content_encoding: self._warn_unknown_encoding(...)` because that's still needed for unsupported encodings.
+
+Let me double check: after `_handle_encoding`, `content_encoding` is actually the list of encodings to keep (unsupported). 
+- Original code: if there are unsupported encodings, warn, then set header to those unsupported encodings.
+- New code: if there are unsupported encodings, warn, but don't modify header. And don't delete header if empty.
+
+So the changes are:
+1. Remove `response.headers["Content-Encoding"] = content_encoding`
+2. Remove `if not content_encoding: del response.headers["Content-Encoding"]`
+
+But wait, `content_encoding` variable is reused from the original header. The original `content_encoding` was `response.headers.getlist("Content-Encoding")`. Then it's reassigned by `_handle_encoding`. We no longer need to use it for header manipulation, but we still need it for the `if content_encoding:` warning and stats? Actually stats don't use it.
+
+So the search/replace blocks would be:
+
+First block, removing the assignment:
+Search:
+```python
+            if content_encoding:
+                self._warn_unknown_encoding(response, content_encoding)
+            response.headers["Content-Encoding"] = content_encoding
+            if self.stats:
+```
+Replace:
+```python
+            if content_encoding:
+                self._warn_unknown_encoding(response, content_encoding)
+            if self.stats:
+```
+
+Second block, removing the deletion:
+Search:
+```python
+            response = response.replace(cls=respcls, **kwargs)
+            if not content_encoding:
+                del response.headers["Content-Encoding"]
+```
+Replace:
+```python
+            response = response.replace(cls=respcls, **kwargs)
+```
+
+Wait, but I need to check if there are trailing spaces or exact indentation. The code uses 12 spaces for indentation inside the `if content_encoding:` block.
+
+Let me verify the exact text in the file.
+
+From the provided content:
+```python
+    @_warn_spider_arg
+    def process_response(
+        self, request: Request, response: Response, spider: Spider | None = None
+    ) -> Request | Response:
+        if request.method == "HEAD":
+            return response
+        content_encoding = response.headers.getlist("Content-Encoding")
+        if content_encoding:
+            max_size = request.meta.get("download_maxsize", self._max_size)
+            warn_size = request.meta.get("download_warnsize", self._warn_size)
+            try:
+                decoded_body, content_encoding = self._handle_encoding(
+                    response.body, content_encoding, max_size
+                )
+            except _DecompressionMaxSizeExceeded as e:
+                msg = (
+                    f"Ignored response {response} because its body "
+                    f"({len(response.body)} B compressed, "
+                    f"{e.decompressed_size}"

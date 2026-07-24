@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "tool_version": "0.1.0",
+  "artifact": "ImplementationPlan",
+  "generator": "openforge.agents.planner.PlannerAgent",
+  "created_at": "2026-07-24T22:39:02.657396+00:00",
+  "data_checksum": "sha256:13147892f1cc5ed22d6ac9058da8598c757b9ad38706b9d44133eca90811c77a",
+  "provenance": {
+    "run_id": "2026-07-24T22-39-01",
+    "generator": "openforge.agents.planner.PlannerAgent",
+    "source_artifacts": [
+      {
+        "artifact": "RepositoryContext",
+        "file_name": "repository.json",
+        "run_id": "2026-07-24T22-39-01",
+        "checksum": "sha256:f1d373ebb6a1b602e58d2d66563b776fdc64def138171e1859e4bd847a5befed"
+      },
+      {
+        "artifact": "IssueFacts",
+        "file_name": "issue_facts.json",
+        "run_id": "2026-07-24T22-39-01",
+        "checksum": "sha256:f5e91364b1be4ff207a986758a7ec8e64a8c18addfdd7d2f392ece2ec8c55bd8"
+      }
+    ]
+  },
+  "data": {
+    "goal": "Preserve the original 'Content-Encoding' response header in Scrapy's HttpCompressionMiddleware instead of stripping it after decompression.",
+    "edit_targets": [
+      {
+        "file_path": "scrapy/downloadermiddlewares/httpcompression.py",
+        "is_required": true,
+        "expected_edit_locations": [
+          "HttpCompressionMiddleware",
+          "process_response()"
+        ],
+        "expected_function_names": [
+          "process_response"
+        ],
+        "expected_behavior_change": "Ensure the Content-Encoding header remains present in the response headers after the response body is decompressed."
+      }
+    ],
+    "implementation_steps": [
+      "Step 1: In scrapy/downloadermiddlewares/httpcompression.py, examine HttpCompressionMiddleware.process_response() to identify where and how the Content-Encoding header is currently removed from the response (e.g., via pop, del, or similar).",
+      "Step 2: Modify the identified logic so the Content-Encoding header is retained in response.headers instead of being discarded after decompression.",
+      "Step 3: Update tests in tests/test_downloadermiddleware_httpcompression.py to assert that Content-Encoding is still present in response headers after the middleware processes an encoded response."
+    ],
+    "tests_to_run": [
+      "pytest tests/test_downloadermiddleware_httpcompression.py"
+    ],
+    "risks": [
+      "Downstream spider code or other middlewares may currently rely on the absence of Content-Encoding to assume the body is already decompressed; preserving it could change expected behavior for existing spiders."
+    ],
+    "requires_human": true
+  }
+}

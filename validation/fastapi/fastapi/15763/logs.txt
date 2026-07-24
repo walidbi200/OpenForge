@@ -1,0 +1,18 @@
+run_id: 2026-07-24T22-46-41
+target: https://github.com/fastapi/fastapi
+repo: fastapi/fastapi
+language: Python
+framework: Starlette
+package_manager: uv
+test_command: pytest
+formatter: ruff
+linter: ruff
+ci: GitHub Actions
+
+issue_url: https://github.com/fastapi/fastapi/issues/15763
+issue_number: 15763
+issue_type: bug
+has_traceback: False
+has_reproduction_steps: False
+mentioned_files: 0
+checklist_items: 5

@@ -1,38 +1,91 @@
 diff --git a/src/click/core.py b/src/click/core.py
-index 6f48367..96b81db 100644
+index 6f48367..8e49fed 100644
 --- a/src/click/core.py
 +++ b/src/click/core.py
-@@ -55,6 +55,21 @@ if t.TYPE_CHECKING:
- F = t.TypeVar("F", bound="t.Callable[..., t.Any]")
- V = t.TypeVar("V")
+@@ -1188,9 +1188,9 @@ class Command:
+         Skipped if :attr:`add_help_option` is ``False``.
  
-+def _get_help_option_storage_name(params: list[Parameter]) -> str:
-+    """Return a reserved storage name for the automatic help option.
-+
-+    If a user parameter already claims ``help``, append trailing underscores
-+    until the name is unique.
-+    """
-+    name = "help"
-+    names = {param.name for param in params}
-+
-+    while name in names:
-+        name += "_"
-+
-+    return name
-+
-+
- # Reserved storage name of the automatic help option. No user parameter is
- # expected to claim it.
- _HELP_OPTION_STORAGE_NAME = "_click_default_help"
-@@ -1211,7 +1226,10 @@ class Command:
-             # The help option never exposes its value, so it uses a reserved
-             # storage name, keeping it clear of user parameters (like an
-             # argument named "help") that would otherwise clobber its value.
+         .. versionchanged:: 8.5.0
+-            The help option stores its value under the reserved name
+-            ``_click_default_help``, so a parameter named ``help`` no
+-            longer breaks parsing.
++            The help option stores its value under a dynamically computed
++            non-conflicting name, so a parameter named ``help`` no longer
++            breaks parsing.
+ 
+         .. versionchanged:: 8.1.8
+             The help option is now cached to avoid creating it multiple times.
+@@ -1208,10 +1208,16 @@ class Command:
+             # Avoid circular import.
+             from .decorators import help_option
+ 
+-            # The help option never exposes its value, so it uses a reserved
+-            # storage name, keeping it clear of user parameters (like an
+-            # argument named "help") that would otherwise clobber its value.
 -            help_option(*help_option_names, _HELP_OPTION_STORAGE_NAME)(self)
-+            # If a user parameter named ``help`` exists, append underscores
-+            # until the internal name is unique.
-+            dest = _get_help_option_storage_name(self.params)
++            # Find a non-conflicting internal storage name for the help option.
++            # If a user parameter already claims the name 'help', append
++            # underscores until unique so the built-in help machinery does not
++            # collide with user-defined parameters.
++            reserved_names = {param.name for param in self.params}
++            dest = "help"
++            while dest in reserved_names:
++                dest += "_"
++
 +            help_option(*help_option_names, dest)(self)
              self._help_option = self.params.pop()  # type: ignore[assignment]
  
          return self._help_option
+diff --git a/tests/test_commands.py b/tests/test_commands.py
+index 35ba65c..399652e 100644
+--- a/tests/test_commands.py
++++ b/tests/test_commands.py
+@@ -648,3 +648,48 @@ def test_suggest_possible_commands(runner, value, expect):
+ 
+     result = runner.invoke(cli, [value])
+     assert expect in result.output
++
++
++def test_user_defined_help_parameter_and_builtin_help(runner):
++    """A user-defined parameter named ``help`` should not prevent the
++    built-in ``--help`` from working, and vice-versa.
++    """
++
++    @click.command()
++    @click.option("--help", "help", default="default", help="User help option")
++    @click.pass_context
++    def cli(ctx, help):
++        click.echo(f"User help value: {help}")
++
++    # Invoking with the user-defined --help option should parse normally.
++    result = runner.invoke(cli, ["--help", "myval"])
++    assert result.exit_code == 0
++    assert result.output == "User help value: myval\n"
++
++    # Invoking with the built-in --help should display help and exit cleanly.
++    result = runner.invoke(cli, ["--help"])
++    assert result.exit_code == 0
++    assert "User help option" in result.output
++    assert "Show this message and exit." in result.output
++
++
++def test_user_defined_help_argument_and_builtin_help(runner):
++    """A user-defined argument named ``help`` should not prevent the
++    built-in ``--help`` from working.
++    """
++
++    @click.command()
++    @click.argument("help")
++    @click.pass_context
++    def cli(ctx, help):
++        click.echo(f"User help value: {help}")
++
++    # Invoking with a positional value for the argument.
++    result = runner.invoke(cli, ["myval"])
++    assert result.exit_code == 0
++    assert result.output == "User help value: myval\n"
++
++    # Invoking with the built-in --help should display help and exit cleanly.
++    result = runner.invoke(cli, ["--help"])
++    assert result.exit_code == 0
++    assert "Show this message and exit." in result.output

@@ -1,0 +1,15 @@
+{
+  "run_id": "2026-07-24T22-48-56",
+  "target": "https://github.com/textualize/rich",
+  "started_at": "2026-07-24T22:48:56.780735+00:00",
+  "updated_at": "2026-07-24T22:50:23.222634+00:00",
+  "tool_version": "0.1.0",
+  "artifacts": [
+    "repository.json",
+    "summary.md",
+    "logs.txt",
+    "issue_facts.json",
+    "plan.json",
+    "code.json"
+  ]
+}

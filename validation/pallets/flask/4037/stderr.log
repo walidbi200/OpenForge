@@ -1,0 +1,8 @@
+
+--- CMD: uv run openforge inspect https://github.com/pallets/flask ---
+
+--- CMD: uv run openforge analyze-issue https://github.com/pallets/flask/issues/4037 --run 2026-07-24T22-40-14 ---
+
+--- CMD: uv run openforge plan https://github.com/pallets/flask/issues/4037 --run 2026-07-24T22-40-14 ---
+
+--- CMD: uv run openforge code --run 2026-07-24T22-40-14 --force ---

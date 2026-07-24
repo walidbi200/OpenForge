@@ -1,0 +1,15 @@
+{
+  "run_id": "2026-07-24T22-41-22",
+  "target": "https://github.com/psf/requests",
+  "started_at": "2026-07-24T22:41:22.366752+00:00",
+  "updated_at": "2026-07-24T22:43:26.999705+00:00",
+  "tool_version": "0.1.0",
+  "artifacts": [
+    "repository.json",
+    "summary.md",
+    "logs.txt",
+    "issue_facts.json",
+    "plan.json",
+    "code.json"
+  ]
+}

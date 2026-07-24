@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "tool_version": "0.1.0",
+  "artifact": "IssueFacts",
+  "generator": "openforge.services.issue_extractor.IssueExtractor",
+  "created_at": "2026-07-24T22:41:23.214694+00:00",
+  "data_checksum": "sha256:72781f08bd9579e9028c35ea9750ef6a55d2af20b2c20fc7061a1eda53859938",
+  "provenance": {
+    "run_id": "2026-07-24T22-41-22",
+    "generator": "openforge.services.issue_extractor.IssueExtractor",
+    "source_artifacts": [
+      {
+        "artifact": "RepositoryContext",
+        "file_name": "repository.json",
+        "run_id": "2026-07-24T22-41-22",
+        "checksum": "sha256:16d7f9acb95038daa86b027d99fc6b0b9c0d2719de4bda82fa91f59e0f3afa2b"
+      }
+    ]
+  },
+  "data": {
+    "issue_url": "https://github.com/psf/requests/issues/5921",
+    "issue_number": 5921,
+    "issue_title": "requests should ignore REQUESTS_CA_BUNDLE when session.verify is False",
+    "labels": [
+      "Bug",
+      "Breaking API Change"
+    ],
+    "issue_type": "bug",
+    "body": "The argument `session.verify` set to False is ignored when the environment variable `REQUESTS_CA_BUNDLE` is set.\r\n\r\n## Reproduction Steps\r\n\r\n\u2705 empty `REQUESTS_CA_BUNDLE` and `session.verify = True` : exception is raised\r\n\r\n```bash\r\n$> REQUESTS_CA_BUNDLE=  python -c 'import requests; session = requests.Session(); session.verify = True; session.get(\"https://expired.badssl.com\")'\r\n...\r\nrequests.exceptions.SSLError: HTTPSConnectionPool(host='expired.badssl.com', port=443): Max retries exceeded with url: / (Caused by SSLError(SSLCertVerificationError(1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: certificate has expired (_ssl.c:1131)')))\r\n```\r\n\r\n\u2705 empty `REQUESTS_CA_BUNDLE` and `session.verify = False`: no exception raised\r\n\r\n```bash\r\n$> REQUESTS_CA_BUNDLE=  python -c 'import requests; session = requests.Session(); session.verify = False; session.get(\"https://expired.badssl.com\")'\r\n```\r\n\r\n\u2705 `REQUESTS_CA_BUNDLE` is invalid, and no `verify` is given to `requests.get` (defaults to `True`): exception is raised because `REQUESTS_CA_BUNDLE` is invalid\r\n\r\n```bash\r\n$> REQUESTS_CA_BUNDLE=invalid  python -c 'import requests; requests.get(\"https://expired.badssl.com\")'\r\n...\r\nOSError: Could not find a suitable TLS CA certificate bundle, invalid path: invalid\r\n```\r\n\r\n\u2705 `REQUESTS_CA_BUNDLE` is invalid and `verify=False` is given to `requests.get`: no exception raised\r\n\r\n```bash\r\n$> REQUESTS_CA_BUNDLE=invalid  python -c 'import requests; requests.get(\"https://expired.badssl.com\", verify=False)'\r\n```\r\n\r\n\u2705 `REQUESTS_CA_BUNDLE` is invalid and `session.verify = True` : exception is raised\r\n\r\n```bash\r\n$> REQUESTS_CA_BUNDLE=invalid python -c 'import requests; session = requests.Session(); session.verify = True; session.get(\"https://expired.badssl.com\")'\r\n...\r\nOSError: Could not find a suitable TLS CA certificate bundle, invalid path: invalid\r\n```\r\n\r\n\u274c `REQUESTS_CA_BUNDLE` is invalid and `session.verify = False` : exception is raised\r\n\r\n```bash\r\n$> REQUESTS_CA_BUNDLE=invalid python -c 'import requests; session = requests.Session(); session.verify = False; session.get(\"https://expired.badssl.com\")'\r\n...\r\nOSError: Could not find a suitable TLS CA certificate bundle, invalid path: invalid\r\n```\r\n\r\n\r\nThe problem comes from https://github.com/psf/requests/blob/b0e025ade7ed30ed53ab61f542779af7e024932e/requests/sessions.py#L717 which ignores the value of `self.verify`.",
+    "body_length": 2393,
+    "section_headers": [
+      "Reproduction Steps"
+    ],
+    "code_blocks": [],
+    "checklist_items": [],
+    "mentioned_files": [
+      "github.com/psf/requests/blob/b0e025ade7ed30ed53ab61f542779af7e024932e/requests/sessions.py"
+    ],
+    "referenced_issues": [],
+    "has_traceback": false,
+    "tracebacks": [],
+    "has_reproduction_steps": true,
+    "extracted_at": "2026-07-24T22:41:23.213683+00:00"
+  }
+}

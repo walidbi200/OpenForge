@@ -1,0 +1,18 @@
+run_id: 2026-07-24T22-43-27
+target: https://github.com/encode/httpx
+repo: encode/httpx
+language: Python
+framework: None
+package_manager: pip
+test_command: pytest
+formatter: ruff
+linter: ruff
+ci: GitHub Actions
+
+issue_url: https://github.com/encode/httpx/issues/1613
+issue_number: 1613
+issue_type: bug
+has_traceback: False
+has_reproduction_steps: False
+mentioned_files: 0
+checklist_items: 0

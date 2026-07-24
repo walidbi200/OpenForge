@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "tool_version": "0.1.0",
+  "artifact": "IssueFacts",
+  "generator": "openforge.services.issue_extractor.IssueExtractor",
+  "created_at": "2026-07-24T22:48:57.668223+00:00",
+  "data_checksum": "sha256:a76e2e7324f12c0345212ac4f40e094c808f83be68d1b4646ab5191b0adf8b12",
+  "provenance": {
+    "run_id": "2026-07-24T22-48-56",
+    "generator": "openforge.services.issue_extractor.IssueExtractor",
+    "source_artifacts": [
+      {
+        "artifact": "RepositoryContext",
+        "file_name": "repository.json",
+        "run_id": "2026-07-24T22-48-56",
+        "checksum": "sha256:9fc0d975a999d47fa0e7e2c7020ec5efa6979d26e40dac45ecab075e89ea7a1b"
+      }
+    ]
+  },
+  "data": {
+    "issue_url": "https://github.com/textualize/rich/issues/3021",
+    "issue_number": 3021,
+    "issue_title": "<html> tag is in wrong spot in template used by export_html()",
+    "labels": [
+      "bug"
+    ],
+    "issue_type": "bug",
+    "body": "The `CONSOLE_HTML_FORMAT` template has `<html>` after `<head>`.\r\n`<html>` should surround `<head>` to be valid.",
+    "body_length": 111,
+    "section_headers": [],
+    "code_blocks": [],
+    "checklist_items": [],
+    "mentioned_files": [],
+    "referenced_issues": [],
+    "has_traceback": false,
+    "tracebacks": [],
+    "has_reproduction_steps": false,
+    "extracted_at": "2026-07-24T22:48:57.667676+00:00"
+  }
+}

@@ -32,29 +32,35 @@ class LocalSandbox(SandboxRunner):
 
 class DockerSandbox(SandboxRunner):
     """Executes commands inside a Python 3.11 Docker container."""
+
     def run(self, cmd: list[str], cwd: Path) -> subprocess.CompletedProcess:
         logger.info("Running test securely inside Docker container.")
         import os
         uid = os.getuid()
         gid = os.getgid()
-        
-        # We mount the workspace repo directly into /repo
-        # Uses a pre-built image with pytest installed.
-        # :Z relabels for SELinux compatibility (required on Fedora/RHEL).
-        # network + read-only removed: --network none breaks DNS (pip needs to resolve pypi.org),
-        # and --read-only blocks pip install. Container isolation + user namespace + resource
-        # limits still provide strong sandboxing.
+
+        # Install dependencies and run tests in a single container invocation
+        # because --rm ephemeral containers do not persist state across runs.
+        combined_cmd = (
+            "(pip install -e . > /tmp/install.log 2>&1) || true; "
+            "(pip install -e '.[test]' >> /tmp/install.log 2>&1) || true; "
+            "(pip install -e '.[dev]' >> /tmp/install.log 2>&1) || true; "
+            "(pip install -r requirements.txt >> /tmp/install.log 2>&1) || true; "
+            "(pip install -r requirements-dev.txt >> /tmp/install.log 2>&1) || true; "
+            "(pip install pytest pytest-asyncio testfixtures mock factory-boy hypothesis >> /tmp/install.log 2>&1) || true; "
+            + " ".join(cmd)
+        )
+
         docker_cmd = [
             "docker", "run", "--rm",
-            "--user", f"{uid}:{gid}",
             "--cpus", "1.0",
             "--memory", "1g",
             "-v", f"{cwd.resolve()}:/repo:Z",
             "-w", "/repo",
             "openforge-python:3.11",
-            "bash", "-c", " ".join(cmd)
+            "bash", "-c", combined_cmd
         ]
-        
+
         try:
             return subprocess.run(docker_cmd, capture_output=True, text=True, timeout=300.0)
         except subprocess.TimeoutExpired as e:

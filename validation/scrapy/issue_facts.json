@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "tool_version": "0.1.0",
+  "artifact": "IssueFacts",
+  "generator": "openforge.services.issue_extractor.IssueExtractor",
+  "created_at": "2026-07-23T14:14:59.523536+00:00",
+  "data_checksum": "sha256:bd35a8fcc5a0f7c9129c956c70722afdf64b71483b990680cd097538683cb119",
+  "provenance": {
+    "run_id": "2026-07-23T14-14-58",
+    "generator": "openforge.services.issue_extractor.IssueExtractor",
+    "source_artifacts": [
+      {
+        "artifact": "RepositoryContext",
+        "file_name": "repository.json",
+        "run_id": "2026-07-23T14-14-58",
+        "checksum": "sha256:daadbfd096750b424bb1710496fdb9747f8679dd89a2dfb6c1b048cf2bbf7e87"
+      }
+    ]
+  },
+  "data": {
+    "issue_url": "https://github.com/scrapy/scrapy/issues/1988",
+    "issue_number": 1988,
+    "issue_title": "\"Content-Encoding\" header gets stripped from response headers",
+    "labels": [
+      "enhancement",
+      "good first issue"
+    ],
+    "issue_type": "feature",
+    "body": "See https://github.com/scrapy/scrapy/blob/master/scrapy/downloadermiddlewares/httpcompression.py#L36\n\nIMHO the \"Content-Encoding\" header should get preserved, since the spider probably wants to see all the original response headers.\n",
+    "body_length": 233,
+    "section_headers": [],
+    "code_blocks": [],
+    "checklist_items": [],
+    "mentioned_files": [
+      "github.com/scrapy/scrapy/blob/master/scrapy/downloadermiddlewares/httpcompression.py"
+    ],
+    "referenced_issues": [],
+    "has_traceback": false,
+    "tracebacks": [],
+    "has_reproduction_steps": false,
+    "extracted_at": "2026-07-23T14:14:59.522984+00:00"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "run_id": "2026-07-24T22-50-25",
+  "target": "https://github.com/pallets/click",
+  "started_at": "2026-07-24T22:50:25.128919+00:00",
+  "updated_at": "2026-07-24T22:53:12.919112+00:00",
+  "tool_version": "0.1.0",
+  "artifacts": [
+    "repository.json",
+    "summary.md",
+    "logs.txt",
+    "issue_facts.json",
+    "plan.json",
+    "code.json"
+  ]
+}

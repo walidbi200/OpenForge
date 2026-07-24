@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "tool_version": "0.1.0",
+  "artifact": "ImplementationPlan",
+  "generator": "openforge.agents.planner.PlannerAgent",
+  "created_at": "2026-07-24T22:40:16.291781+00:00",
+  "data_checksum": "sha256:3c93ced60e55c16540a7841e1f205df194cef10e080c284494f6bd6e2e66654b",
+  "provenance": {
+    "run_id": "2026-07-24T22-40-14",
+    "generator": "openforge.agents.planner.PlannerAgent",
+    "source_artifacts": [
+      {
+        "artifact": "RepositoryContext",
+        "file_name": "repository.json",
+        "run_id": "2026-07-24T22-40-14",
+        "checksum": "sha256:c45a1670f6ebcf63de6fba453ff57a6fb0347ff1f0f7a760c846be26e62535a3"
+      },
+      {
+        "artifact": "IssueFacts",
+        "file_name": "issue_facts.json",
+        "run_id": "2026-07-24T22-40-14",
+        "checksum": "sha256:92f2a90a374dfb14be77ac10175fdf0ce9789bc31a32db9f29e13bea65cb201f"
+      }
+    ]
+  },
+  "data": {
+    "goal": "Fix nested Flask Blueprint URL prefix resolution so that a child blueprint's constructor-level url_prefix is correctly combined with its parent blueprint's url_prefix, producing the expected concatenated route rule.",
+    "edit_targets": [
+      {
+        "file_path": "src/flask/blueprints.py",
+        "is_required": true,
+        "expected_edit_locations": [
+          "Blueprint.register_blueprint()"
+        ],
+        "expected_function_names": [
+          "register_blueprint"
+        ],
+        "expected_behavior_change": "When registering a nested blueprint, merge the child blueprint's self.url_prefix (from its constructor) into the registration options if no url_prefix is explicitly passed in register_blueprint(). If both exist, concatenate them with the parent's registration options taking nesting order into account."
+      }
+    ],
+    "implementation_steps": [
+      "Step 1: In src/flask/blueprints.py, modify the Blueprint.register_blueprint() method. Before appending the (blueprint, options) tuple to self._blueprints, check if options does not contain an explicit 'url_prefix' but the blueprint argument has a non-None url_prefix attribute (from its constructor). If so, inject blueprint.url_prefix into the options dictionary.",
+      "Step 2: If both the options contain a url_prefix (from explicit call) and the blueprint has its own url_prefix, ensure they are concatenated correctly: options['url_prefix'] should become the parent's prefix path + '/' + blueprint's prefix path, normalizing slashes. Reference the existing _get_prefix_fragment helper or url prefix normalization logic in the same file if available.",
+      "Step 3: Add or update a unit test in tests/test_blueprints.py that creates a parent Blueprint with url_prefix='/child', a child Blueprint with url_prefix='/parent', registers the child under the parent, registers the parent under an app, and asserts that the endpoint rule is '/child/parent/' instead of '/'."
+    ],
+    "tests_to_run": [
+      "pytest tests/test_blueprints.py -v"
+    ],
+    "risks": [
+      "Changing how url_prefix is merged may affect existing users who relied on the buggy behavior of silently dropping the inner blueprint constructor prefix. We should ensure Flask's own url_prefix normalization (trailing slashes, leading slashes) is preserved."
+    ],
+    "requires_human": true
+  }
+}

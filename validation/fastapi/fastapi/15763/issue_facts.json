@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "tool_version": "0.1.0",
+  "artifact": "IssueFacts",
+  "generator": "openforge.services.issue_extractor.IssueExtractor",
+  "created_at": "2026-07-24T22:46:42.493246+00:00",
+  "data_checksum": "sha256:6f6f40634f199beba4b08eae7ac670435290e7343b2da2221cc2f704faa9c6e7",
+  "provenance": {
+    "run_id": "2026-07-24T22-46-41",
+    "generator": "openforge.services.issue_extractor.IssueExtractor",
+    "source_artifacts": [
+      {
+        "artifact": "RepositoryContext",
+        "file_name": "repository.json",
+        "run_id": "2026-07-24T22-46-41",
+        "checksum": "sha256:e64189bf0c02c6f34f1c53157b0412835998c2326b9274dffc49210510507f9d"
+      }
+    ]
+  },
+  "data": {
+    "issue_url": "https://github.com/fastapi/fastapi/issues/15763",
+    "issue_number": 15763,
+    "issue_title": "\ud83d\udc1b Fix bug, allow empty path in path operation in prefixless router",
+    "labels": [
+      "bug"
+    ],
+    "issue_type": "bug",
+    "body": "## Pull Request\r\n\r\n\ud83d\udc1b Fix bug, allow empty path in path operation in prefixless router\r\n\r\nRelated to https://github.com/fastapi/fastapi/issues/15762\r\n\r\n<!--\r\nPlease start with a GitHub Discussion.\r\n\r\nOnce a team member asks you to open a PR, create it and link the discussion here.\r\n\r\nObvious typo fixes can be made in a PR without starting a discussion.\r\n-->\r\n\r\nDiscussion: <!-- Link to the GitHub Discussion -->\r\n\r\n## Description\r\n\r\n<!-- Write the description of your PR here -->\r\n\r\n## AI Disclaimer\r\n\r\n<!-- If using AI, write here the prompt and model used -->\r\n\r\n<details>\r\n<summary>AI transcript</summary>\r\n\r\n<!-- Paste here the entire AI transcript -->\r\n\r\n</details>\r\n\r\n## Checklist\r\n\r\n- [ ] This PR is an obvious typo fix, or it links to a GitHub Discussion for the proposed code change.\r\n- [ ] I added tests for the change.\r\n- [ ] The new or updated tests fail on the main branch and pass on this PR.\r\n- [ ] Coverage stays at 100%.\r\n- [ ] The documentation explains the change if needed.\r\n",
+    "body_length": 996,
+    "section_headers": [
+      "Pull Request",
+      "Description",
+      "AI Disclaimer",
+      "Checklist"
+    ],
+    "code_blocks": [],
+    "checklist_items": [
+      "This PR is an obvious typo fix, or it links to a GitHub Discussion for the proposed code change.",
+      "I added tests for the change.",
+      "The new or updated tests fail on the main branch and pass on this PR.",
+      "Coverage stays at 100%.",
+      "The documentation explains the change if needed."
+    ],
+    "mentioned_files": [],
+    "referenced_issues": [],
+    "has_traceback": false,
+    "tracebacks": [],
+    "has_reproduction_steps": false,
+    "extracted_at": "2026-07-24T22:46:42.492778+00:00"
+  }
+}

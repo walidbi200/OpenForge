@@ -1,0 +1,14 @@
+{
+  "run_id": "2026-07-24T22-39-01",
+  "target": "https://github.com/scrapy/scrapy",
+  "started_at": "2026-07-24T22:39:01.084449+00:00",
+  "updated_at": "2026-07-24T22:39:02.657586+00:00",
+  "tool_version": "0.1.0",
+  "artifacts": [
+    "repository.json",
+    "summary.md",
+    "logs.txt",
+    "issue_facts.json",
+    "plan.json"
+  ]
+}

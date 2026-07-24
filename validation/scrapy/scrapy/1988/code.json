@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "artifact": "CodeResult",
+  "generator": "openforge.agents.coder.CodingAgent",
+  "created_at": "2026-07-24T22:24:52.232715+00:00",
+  "provenance": {
+    "run_id": "2026-07-24T22-23-29",
+    "generator": "openforge.agents.coder.CodingAgent",
+    "source_artifacts": [
+      {
+        "artifact": "ImplementationPlan",
+        "file_name": "plan.json",
+        "run_id": "2026-07-24T22-23-29"
+      }
+    ]
+  },
+  "data": {
+    "branch_name": "openforge/1988-preserve-the-original-content",
+    "edits": [
+      {
+        "path": "scrapy/downloadermiddlewares/httpcompression.py",
+        "action": "modify"
+      }
+    ],
+    "unexpected_files": [],
+    "git_diff": "diff --git a/scrapy/downloadermiddlewares/httpcompression.py b/scrapy/downloadermiddlewares/httpcompression.py\nindex 13a4324..e63cf75 100644\n--- a/scrapy/downloadermiddlewares/httpcompression.py\n+++ b/scrapy/downloadermiddlewares/httpcompression.py\n@@ -139,7 +139,6 @@ class HttpCompressionMiddleware:\n                 )\n             if content_encoding:\n                 self._warn_unknown_encoding(response, content_encoding)\n-            response.headers[\"Content-Encoding\"] = content_encoding\n             if self.stats:\n                 self.stats.inc_value(\n                     \"httpcompression/response_bytes\",\n@@ -155,8 +154,6 @@ class HttpCompressionMiddleware:\n                 # responsetypes guessing is reliable\n                 kwargs[\"encoding\"] = None\n             response = response.replace(cls=respcls, **kwargs)\n-            if not content_encoding:\n-                del response.headers[\"Content-Encoding\"]\n         return response\n \n     def _handle_encoding(\n",
+    "test_results": [
+      {
+        "command": "pytest tests/test_downloadermiddleware_httpcompression.py",
+        "returncode": 1,
+        "passed": false,
+        "stdout": "",
+        "stderr": "COMMAND NOT FOUND: [Errno 2] No such file or directory: 'pip'. Is the test runner installed in this environment?"
+      }
+    ],
+    "summary": "Removed the lines that overwrote and deleted the Content-Encoding header after decompression, preserving the original header in the response."
+  }
+}

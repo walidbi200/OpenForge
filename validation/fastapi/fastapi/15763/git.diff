@@ -1,0 +1,78 @@
+diff --git a/fastapi/routing.py b/fastapi/routing.py
+index 7820777..383782e 100644
+--- a/fastapi/routing.py
++++ b/fastapi/routing.py
+@@ -2887,8 +2887,11 @@ class APIRouter(routing.Router):
+         current_generate_unique_id = get_value_or_default(
+             generate_unique_id_function, self.generate_unique_id_function
+         )
++        route_path = self.prefix + path
++        if not route_path:
++            route_path = "/"
+         route = route_class(
+-            self.prefix + path,
++            route_path,
+             endpoint=endpoint,
+             response_model=response_model,
+             status_code=status_code,
+@@ -2995,8 +2998,11 @@ class APIRouter(routing.Router):
+         if dependencies:
+             current_dependencies.extend(dependencies)
+ 
++        route_path = self.prefix + path
++        if not route_path:
++            route_path = "/"
+         route = APIWebSocketRoute(
+-            self.prefix + path,
++            route_path,
+             endpoint=endpoint,
+             name=name,
+             dependencies=current_dependencies,
+diff --git a/tests/test_api_router.py b/tests/test_api_router.py
+new file mode 100644
+index 0000000..10cef85
+--- /dev/null
++++ b/tests/test_api_router.py
+@@ -0,0 +1,42 @@
++from fastapi import APIRouter, FastAPI
++from fastapi.testclient import TestClient
++
++
++class TestEmptyPathInPrefixlessRouter:
++    def test_http_get_empty_path(self):
++        router = APIRouter()
++
++        @router.get("")
++        def read_root():
++            return {"message": "Hello World"}
++
++        app = FastAPI()
++        app.include_router(router)
++
++        client = TestClient(app)
++        response = client.get("/")
++        assert response.status_code == 200
++        assert response.json() == {"message": "Hello World"}
++
++        # The generated route path should be normalized to "/"
++        assert router.routes[0].path == "/"
++
++    def test_websocket_empty_path(self):
++        router = APIRouter()
++
++        @router.websocket("")
++        async def websocket_endpoint(websocket):
++            await websocket.accept()
++            await websocket.send_text("Hello WebSocket")
++            await websocket.close()
++
++        app = FastAPI()
++        app.include_router(router)
++
++        client = TestClient(app)
++        with client.websocket_connect("/") as websocket:
++            data = websocket.receive_text()
++            assert data == "Hello WebSocket"
++
++        # The generated route path should be normalized to "/"
++        assert router.routes[0].path == "/"

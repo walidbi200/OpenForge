@@ -1,0 +1,8 @@
+
+--- CMD: uv run openforge inspect https://github.com/fastapi/fastapi ---
+
+--- CMD: uv run openforge analyze-issue https://github.com/fastapi/fastapi/issues/15763 --run 2026-07-24T22-46-41 ---
+
+--- CMD: uv run openforge plan https://github.com/fastapi/fastapi/issues/15763 --run 2026-07-24T22-46-41 ---
+
+--- CMD: uv run openforge code --run 2026-07-24T22-46-41 --force ---

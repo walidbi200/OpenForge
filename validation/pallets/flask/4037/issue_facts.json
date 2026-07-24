@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "tool_version": "0.1.0",
+  "artifact": "IssueFacts",
+  "generator": "openforge.services.issue_extractor.IssueExtractor",
+  "created_at": "2026-07-24T22:40:15.610372+00:00",
+  "data_checksum": "sha256:92f2a90a374dfb14be77ac10175fdf0ce9789bc31a32db9f29e13bea65cb201f",
+  "provenance": {
+    "run_id": "2026-07-24T22-40-14",
+    "generator": "openforge.services.issue_extractor.IssueExtractor",
+    "source_artifacts": [
+      {
+        "artifact": "RepositoryContext",
+        "file_name": "repository.json",
+        "run_id": "2026-07-24T22-40-14",
+        "checksum": "sha256:c45a1670f6ebcf63de6fba453ff57a6fb0347ff1f0f7a760c846be26e62535a3"
+      }
+    ]
+  },
+  "data": {
+    "issue_url": "https://github.com/pallets/flask/issues/4037",
+    "issue_number": 4037,
+    "issue_title": "The Blueprint(url_prefix) parameter is not working when using nesting blueprint",
+    "labels": [
+      "bug",
+      "blueprints"
+    ],
+    "issue_type": "bug",
+    "body": "Minimal example:\r\n\r\n```python\r\nfrom flask import Flask, Blueprint\r\n\r\napp = Flask(__name__)\r\nparent = Blueprint('parent', __name__, url_prefix='/child')\r\nchild = Blueprint('child', __name__, url_prefix='/parent')\r\n\r\n\r\n@child.get('/')\r\ndef index():\r\n    return 'hello'\r\n\r\n\r\nparent.register_blueprint(child)\r\napp.register_blueprint(parent)\r\n```\r\n\r\nThe output of `flask routes`:\r\n\r\n```\r\n$ flask routes\r\nEndpoint            Methods  Rule\r\n------------------  -------  -----------------------\r\nparent.child.index  GET      /\r\nstatic              GET      /static/<path:filename>\r\n```\r\n\r\nThe URL rule should be `/parent/child/` instead of `/`.\r\n\r\nP.S. The URL prefix works fine if set the prefix by using `register_blueprint(url_prefix)`.\r\n\r\nEnvironment:\r\n\r\n- Flask version: 2.0\r\n",
+    "body_length": 773,
+    "section_headers": [],
+    "code_blocks": [],
+    "checklist_items": [],
+    "mentioned_files": [],
+    "referenced_issues": [],
+    "has_traceback": false,
+    "tracebacks": [],
+    "has_reproduction_steps": false,
+    "extracted_at": "2026-07-24T22:40:15.609814+00:00"
+  }
+}
