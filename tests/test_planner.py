@@ -125,6 +125,19 @@ class TestExtractJson:
         parsed = json.loads(result)
         assert parsed["goal"] == "Fix it"
 
+    def test_json_with_literal_brace_in_string(self):
+        raw = '{"code": "if x: }", "files": [{"path": "a.py", "replace": "})", "search": "("}]}'
+        result = extract_json(raw)
+        parsed = json.loads(result)
+        assert parsed["code"] == "if x: }"
+        assert len(parsed["files"]) == 1
+
+    def test_concatenated_json_returns_first(self):
+        raw = '{"a": 1}{"b": 2}'
+        result = extract_json(raw)
+        parsed = json.loads(result)
+        assert parsed == {"a": 1}
+
     def test_returns_raw_when_no_braces(self):
         raw = "Sorry, I cannot help."
         result = extract_json(raw)

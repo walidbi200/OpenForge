@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import re
+import logging
+
+logger = logging.getLogger(__name__)
 
 _GITHUB_PATTERN = re.compile(
     r"github\.com[:/]+(?P<owner>[\w.-]+)/(?P<repo>[\w.-]+?)(?:\.git)?(?:/.*)?$"
@@ -35,8 +38,9 @@ def slugify_repo_label(owner: str, repo: str) -> str:
 def extract_json(text: str) -> str:
     """Extract the first JSON object from a string that may contain prose.
 
-    If multiple JSON objects are present (e.g. the model concatenated
-    two responses), returns only the first valid one.
+    Uses json.JSONDecoder().raw_decode() which correctly respects string
+    and escape boundaries, unlike brace-counting heuristics that can
+    split inside string values.
     """
     import json
 
@@ -49,25 +53,29 @@ def extract_json(text: str) -> str:
         except (json.JSONDecodeError, ValueError):
             continue
 
-    # 2. Find the first standalone JSON object by bracket matching.
-    #    Greedy regex `.*` would span to the *last* `}` and capture
-    #    concatenated responses. We walk forward instead.
+    # 2. Use a real JSON decoder to find the first top-level object.
+    decoder = json.JSONDecoder()
+    text = text.strip()
     start = text.find("{")
-    while start != -1:
-        # Try every closing brace after start
-        end = text.find("}", start + 1)
-        while end != -1:
-            candidate = text[start:end + 1]
-            try:
-                json.loads(candidate)
-                return candidate
-            except (json.JSONDecodeError, ValueError):
-                pass
-            end = text.find("}", end + 1)
-        start = text.find("{", start + 1)
+    if start == -1:
+        # Fallback — caller will likely fail
+        return text
 
-    # Fallback — caller will likely fail json.loads, but at least returned.
-    return text
+    try:
+        obj, end_idx = decoder.raw_decode(text, start)
+    except (json.JSONDecodeError, ValueError):
+        # Fallback — caller will likely fail
+        return text
+
+    candidate = text[start:end_idx]
+    leftover = text[end_idx:].strip()
+    if leftover:
+        logger.warning(
+            "extract_json: %d chars of unparsed content after the first "
+            "JSON object (possible concatenated/truncated response): %r",
+            len(leftover), leftover[:200],
+        )
+    return candidate
 
 
 def repair_json(json_str: str) -> str:
