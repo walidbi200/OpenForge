@@ -212,6 +212,14 @@ class IssueFacts(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class EditTarget(BaseModel):
+    """Structured edit target for the coder."""
+    file_path: str
+    is_required: bool = True
+    expected_edit_locations: list[str] = Field(default_factory=list)
+    expected_function_names: list[str] = Field(default_factory=list)
+    expected_behavior_change: str = ""
+
 class ImplementationPlan(BaseModel):
     """Contract for PlannerAgent (Milestone 4).
 
@@ -221,8 +229,12 @@ class ImplementationPlan(BaseModel):
     goal: str
     """High-level summary of what this plan accomplishes."""
 
-    files_to_modify: list[str] = Field(default_factory=list)
-    """Target file paths relative to repository root."""
+    edit_targets: list[EditTarget] = Field(default_factory=list)
+    """Target files and structured instructions for the coder."""
+
+    @property
+    def files_to_modify(self) -> list[str]:
+        return [t.file_path for t in self.edit_targets]
 
     implementation_steps: list[str] = Field(default_factory=list)
     """Step-by-step instruction sequence for CodingAgent."""

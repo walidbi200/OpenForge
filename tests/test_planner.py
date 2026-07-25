@@ -41,7 +41,7 @@ _SETTINGS_NO_KEY = Settings(openrouter_api_key=None)
 _MINIMAL_PLAN_JSON = json.dumps(
     {
         "goal": "Fix the bug in the parser.",
-        "files_to_modify": ["src/parser.py"],
+        "edit_targets": [{"file_path": "src/parser.py"}],
         "implementation_steps": ["Step 1: Edit parse() in src/parser.py"],
         "tests_to_run": ["pytest tests/test_parser.py"],
         "risks": [],
@@ -148,7 +148,7 @@ class TestParsePlan:
         agent = _make_agent_bare()
         data = {
             "goal": "Unclear request.",
-            "files_to_modify": [],
+            "edit_targets": [],
             "implementation_steps": [],
             "tests_to_run": [],
             "risks": [],
@@ -164,7 +164,7 @@ class TestParsePlan:
 
     def test_missing_required_field_raises_planner_error(self):
         agent = _make_agent_bare()
-        data = {"files_to_modify": ["a.py"], "requires_human": False}
+        data = {"edit_targets": [{"file_path": "a.py"}], "requires_human": False}
         with pytest.raises(PlannerError, match="schema"):
             agent._parse_plan(json.dumps(data))
 
@@ -181,7 +181,7 @@ class TestParsePlan:
         agent = _make_agent_bare()
         data = {
             "goal": "Fix the header deletion bug.",
-            "files_to_modify": ["scrapy/http/response/__init__.py"],
+            "edit_targets": [{"file_path": "scrapy/http/response/__init__.py"}],
             "implementation_steps": ["Remove the line that deletes Content-Encoding."],
             "tests_to_run": ["pytest tests/test_http.py"],
             "risks": ["This may change decompression behavior for callers."],
@@ -195,7 +195,7 @@ class TestParsePlan:
         agent = _make_agent_bare()
         data = {
             "goal": "Ambiguous.",
-            "files_to_modify": [],
+            "edit_targets": [],
             "implementation_steps": [],
             "tests_to_run": [],
             "risks": ["Breaking change possible"],
@@ -209,7 +209,7 @@ class TestParsePlan:
         agent = _make_agent_bare()
         data = {
             "goal": "Safe trivial fix.",
-            "files_to_modify": ["a.py"],
+            "edit_targets": [{"file_path": "a.py"}],
             "implementation_steps": ["Remove dead code."],
             "tests_to_run": ["pytest"],
             "risks": [],
@@ -223,7 +223,7 @@ class TestParsePlan:
         agent = _make_agent_bare()
         data = {
             "goal": "Safe fix.",
-            "files_to_modify": ["a.py"],
+            "edit_targets": [{"file_path": "a.py"}],
             "implementation_steps": ["Do the thing."],
             "tests_to_run": ["pytest"],
             "risks": ["N/A"],
@@ -386,16 +386,14 @@ class TestReadMentionedFiles:
 
         assert len(snippets) == 1
         snippet = snippets[0]
-        assert snippet.content is None  # not included
-        assert snippet.skip_reason is not None
-        assert "too large" in snippet.skip_reason
-
-        # The note appears in the rendered prompt but no raw content does.
+        assert snippet.content is not None
+        assert "skeletonized/truncated" in snippet.skip_reason
+        
         prompt = agent._render_prompt(repo, facts, snippets)
-        assert "too large" in prompt
-        assert "x = 1" not in prompt
+        assert "truncated for size" in prompt
+        assert "x = 1" in prompt
 
-    def test_cap_at_five_files(self, tmp_path: Path):
+    def test_cap_at_three_files(self, tmp_path: Path):
         """Only the first 5 existing files are included even if more are mentioned."""
         for i in range(8):
             (tmp_path / f"f{i}.py").write_text(f"# file {i}\n", encoding="utf-8")
@@ -412,7 +410,7 @@ class TestReadMentionedFiles:
         agent = PlannerAgent(_SETTINGS_WITH_KEY)
         snippets = agent._read_mentioned_files(repo, facts)
 
-        assert len(snippets) == 5
+        assert len(snippets) == 3
 
     def test_none_repo_returns_empty_snippets(self):
         """No source_path means no files to read — returns empty list cleanly."""
@@ -447,39 +445,22 @@ class TestReadMentionedFiles:
 class TestPlannerPlanMocked:
     def test_successful_plan_call(self):
         """Mock the HTTP call and verify plan is returned correctly."""
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "choices": [{"message": {"content": _MINIMAL_PLAN_JSON}}]
-        }
-        mock_response.raise_for_status = MagicMock()
-
         agent = PlannerAgent(_SETTINGS_WITH_KEY)
-        with patch("openforge.agents.planner.httpx.post", return_value=mock_response):
+        with patch("openforge.agents.planner.call_llm", return_value=_MINIMAL_PLAN_JSON):
             plan = agent.plan(_MINIMAL_REPO, _MINIMAL_FACTS)
 
         assert plan.goal == "Fix the bug in the parser."
         assert "src/parser.py" in plan.files_to_modify
 
     def test_http_error_raises_planner_error(self):
-        import httpx
-
         agent = PlannerAgent(_SETTINGS_WITH_KEY)
-        with patch(
-            "openforge.agents.planner.httpx.post",
-            side_effect=httpx.ConnectError("connection refused"),
-        ):
-            with pytest.raises(PlannerError, match="call failed"):
+        with patch("openforge.agents.planner.call_llm", side_effect=RuntimeError("[openrouter] HTTP 500")):
+            with pytest.raises(PlannerError, match=r"\[openrouter\] HTTP 500"):
                 agent.plan(_MINIMAL_REPO, _MINIMAL_FACTS)
 
     def test_llm_returns_garbage_raises_planner_error(self):
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "choices": [{"message": {"content": "I cannot help with that."}}]
-        }
-        mock_response.raise_for_status = MagicMock()
-
         agent = PlannerAgent(_SETTINGS_WITH_KEY)
-        with patch("openforge.agents.planner.httpx.post", return_value=mock_response):
+        with patch("openforge.agents.planner.call_llm", return_value="I cannot help with that."):
             with pytest.raises(PlannerError):
                 agent.plan(_MINIMAL_REPO, _MINIMAL_FACTS)
 
@@ -488,7 +469,7 @@ class TestPlannerPlanMocked:
         plan_json = json.dumps(
             {
                 "goal": "Fix the header issue.",
-                "files_to_modify": ["scrapy/http/response/__init__.py"],
+                "edit_targets": [{"file_path": "scrapy/http/response/__init__.py"}],
                 "implementation_steps": ["Delete the Content-Encoding removal line."],
                 "tests_to_run": ["pytest tests/"],
                 "risks": ["May change decompression behavior for existing callers."],
@@ -502,7 +483,7 @@ class TestPlannerPlanMocked:
         mock_response.raise_for_status = MagicMock()
 
         agent = PlannerAgent(_SETTINGS_WITH_KEY)
-        with patch("openforge.agents.planner.httpx.post", return_value=mock_response):
+        with patch("openforge.agents.planner.call_llm", return_value=plan_json):
             plan = agent.plan(None, _MINIMAL_FACTS)
 
         assert plan.requires_human is True
@@ -511,7 +492,7 @@ class TestPlannerPlanMocked:
         plan_json = json.dumps(
             {
                 "goal": "Ambiguous request requiring maintainer input.",
-                "files_to_modify": [],
+                "edit_targets": [],
                 "implementation_steps": [],
                 "tests_to_run": [],
                 "risks": ["Breaking change possible"],
@@ -525,7 +506,7 @@ class TestPlannerPlanMocked:
         mock_response.raise_for_status = MagicMock()
 
         agent = PlannerAgent(_SETTINGS_WITH_KEY)
-        with patch("openforge.agents.planner.httpx.post", return_value=mock_response):
+        with patch("openforge.agents.planner.call_llm", return_value=plan_json):
             plan = agent.plan(None, _MINIMAL_FACTS)
 
         assert plan.requires_human is True
@@ -534,7 +515,7 @@ class TestPlannerPlanMocked:
         plan_json = json.dumps(
             {
                 "goal": "Fix it.",
-                "files_to_modify": ["../../etc/passwd", "/tmp/pwned", "src/main.py"],
+                "edit_targets": [{"file_path": "../../etc/passwd"}, {"file_path": "/tmp/pwned"}, {"file_path": "src/main.py"}],
                 "implementation_steps": [],
                 "tests_to_run": [],
                 "risks": [],
@@ -548,7 +529,7 @@ class TestPlannerPlanMocked:
         mock_response.raise_for_status = MagicMock()
 
         agent = PlannerAgent(_SETTINGS_WITH_KEY)
-        with patch("openforge.agents.planner.httpx.post", return_value=mock_response):
+        with patch("openforge.agents.planner.call_llm", return_value=plan_json):
             plan = agent.plan(_MINIMAL_REPO, _MINIMAL_FACTS)
 
         assert "src/main.py" in plan.files_to_modify

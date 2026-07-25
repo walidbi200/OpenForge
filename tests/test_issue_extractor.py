@@ -481,11 +481,11 @@ class TestMilestone4Models:
     """Verify ImplementationPlan model schema, catalog fixtures, and serialisability."""
 
     def test_implementation_plan_contract(self) -> None:
-        from openforge.models import Artifact, ImplementationPlan, SourceArtifact
+        from openforge.models import Artifact, ImplementationPlan, SourceArtifact, EditTarget
 
         plan = ImplementationPlan(
             goal="Fix 422 Unprocessable Entity in /api/users",
-            files_to_modify=["routers/users.py"],
+            edit_targets=[EditTarget(file_path="routers/users.py")],
             implementation_steps=[
                 "Parse nested JSON address parameter using Pydantic model",
                 "Update type annotation in create_user route handler",
@@ -511,7 +511,7 @@ class TestMilestone4Models:
         assert dict_out["generator"] == "openforge.agents.planner.PlannerAgent"
         assert len(dict_out["provenance"]["source_artifacts"]) == 2
         assert dict_out["data"]["goal"].startswith("Fix 422")
-        assert len(dict_out["data"]["files_to_modify"]) == 1
+        assert len(dict_out["data"]["edit_targets"]) == 1
 
     def test_planning_catalog_fixtures(self) -> None:
         from tests.planning_catalog import PLANNING_CATALOG, PlanningFixture

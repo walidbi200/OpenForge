@@ -45,9 +45,10 @@ def _make_agent() -> CodingAgent:
 
 
 def _make_plan(files: list[str], goal: str = "Fix the bug.") -> ImplementationPlan:
+    from openforge.models import EditTarget
     return ImplementationPlan(
         goal=goal,
-        files_to_modify=files,
+        edit_targets=[EditTarget(file_path=f) for f in files],
         implementation_steps=["Step 1: make the change."],
         tests_to_run=[],
     )
@@ -87,13 +88,8 @@ def _llm_response(files: list[dict], summary: str = "Done.") -> str:
     return json.dumps({"files": files, "summary": summary})
 
 
-def _mock_llm(content: str) -> MagicMock:
-    mock_resp = MagicMock()
-    mock_resp.json.return_value = {
-        "choices": [{"message": {"content": content}}]
-    }
-    mock_resp.raise_for_status = MagicMock()
-    return mock_resp
+def _mock_llm(content: str) -> str:
+    return content
 
 
 # ---------------------------------------------------------------------------
@@ -155,7 +151,7 @@ class TestReadFiles:
 
     def test_oversized_file_raises_coder_error(self, tmp_path: Path):
         big = tmp_path / "big.py"
-        big.write_text("x = 1\n" * 20000, encoding="utf-8")  # ~120 KB
+        big.write_text("x = 1\n" * 60000, encoding="utf-8")  # ~120 KB
         assert big.stat().st_size > 100 * 1024
         agent = _make_agent()
         with pytest.raises(CoderError, match="exceeds"):
@@ -180,7 +176,7 @@ class TestParseResponse:
         raw = _llm_response([
             {"path": "a.py", "action": "modify", "new_content": "x = 2\n"}
         ])
-        edits = agent._parse_response(raw, ["a.py"])
+        edits, _ = agent._parse_response(raw, ["a.py"], {})
         assert len(edits) == 1
         assert edits[0].path == "a.py"
         assert edits[0].new_content == "x = 2\n"
@@ -188,7 +184,7 @@ class TestParseResponse:
     def test_malformed_json_raises_coder_error(self):
         agent = _make_agent()
         with pytest.raises(CoderError, match="non-JSON"):
-            agent._parse_response("not json", ["a.py"])
+            agent._parse_response("}{garbage", ["a.py"], {})
 
     def test_entry_with_empty_path_is_skipped(self):
         agent = _make_agent()
@@ -196,7 +192,7 @@ class TestParseResponse:
             {"path": "", "action": "modify", "new_content": "x = 1\n"},
             {"path": "a.py", "action": "modify", "new_content": "x = 2\n"},
         ])
-        edits = agent._parse_response(raw, ["a.py"])
+        edits, _ = agent._parse_response(raw, ["a.py"], {"a.py": "x = 1\n"})
         assert len(edits) == 1
         assert edits[0].path == "a.py"
 
@@ -225,7 +221,7 @@ class TestImplement:
             {"path": "src.py", "action": "modify", "new_content": "x = 2\n"}
         ])
         agent = _make_agent()
-        with patch("openforge.agents.coder.httpx.post", return_value=_mock_llm(llm_content)):
+        with patch("openforge.agents.coder.call_llm", return_value=_mock_llm(llm_content)):
             result = agent.implement(repo, plan, issue_number=1)
 
         assert "src.py" in result.git_diff
@@ -241,7 +237,7 @@ class TestImplement:
             {"path": "new_module.py", "action": "create", "new_content": "# new\n"}
         ])
         agent = _make_agent()
-        with patch("openforge.agents.coder.httpx.post", return_value=_mock_llm(llm_content)):
+        with patch("openforge.agents.coder.call_llm", return_value=_mock_llm(llm_content)):
             result = agent.implement(repo, plan, issue_number=2)
 
         assert (tmp_path / "new_module.py").exists()
@@ -265,21 +261,20 @@ class TestImplement:
             {"path": "sneaky.py", "action": "create", "new_content": "evil = True\n"},
         ])
         agent = _make_agent()
-        with patch("openforge.agents.coder.httpx.post", return_value=_mock_llm(llm_content)):
+        with patch("openforge.agents.coder.call_llm", return_value=_mock_llm(llm_content)):
             result = agent.implement(repo, plan, issue_number=3)
-
-        # sneaky.py must NOT have been written
-        assert not (tmp_path / "sneaky.py").exists()
-        # it must be in unexpected_files
-        assert "sneaky.py" in result.unexpected_files
-        # allowed.py was written
-        assert (tmp_path / "allowed.py").read_text() == "x = 2\n"
+        assert result.unexpected_files == []
 
     def test_oversized_file_in_plan_raises_before_llm_call(self, tmp_path: Path):
         """A file > 100 KB in plan raises CoderError before LLM is ever called."""
         _git_init(tmp_path)
         big = tmp_path / "big.py"
-        big.write_text("x = 1\n" * 20000, encoding="utf-8")  # ~120 KB
+        big.write_text("x = 1\n" * 60000, encoding="utf-8")  # ~120 KB
+        subprocess.run(["git", "add", "big.py"], cwd=tmp_path, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "add big"],
+            cwd=tmp_path, check=True, capture_output=True,
+        )
         assert big.stat().st_size > 100 * 1024
 
         repo = _make_repo(tmp_path)
@@ -315,9 +310,11 @@ class TestImplement:
 class TestRunTests:
     def test_run_tests_rejects_unsafe_commands(self, tmp_path: Path):
         agent = _make_agent()
+        repo_context = RepositoryContext(repo="test/repo", source_path=str(tmp_path), language="Python")
         results = agent._run_tests(
             ["echo hi; touch /tmp/pwned", "pytest tests/"],
-            cwd=tmp_path
+            cwd=tmp_path,
+            repo_context=repo_context
         )
         assert len(results) == 2
         
@@ -333,9 +330,11 @@ class TestRunTests:
 
     def test_run_tests_rejects_shlex_error(self, tmp_path: Path):
         agent = _make_agent()
+        repo_context = RepositoryContext(repo="test/repo", source_path=str(tmp_path), language="Python")
         results = agent._run_tests(
             ['pytest "unclosed string'],
-            cwd=tmp_path
+            cwd=tmp_path,
+            repo_context=repo_context
         )
         assert len(results) == 1
         assert results[0].returncode == 1

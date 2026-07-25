@@ -43,9 +43,14 @@ Produce a JSON object matching EXACTLY this schema:
 
 {{
   "goal": "A 1-2 sentence high-level summary of what this implementation plan accomplishes.",
-  "files_to_modify": [
-    "relative/path/to/file1.py",
-    "relative/path/to/file2.py"
+  "edit_targets": [
+    {{
+      "file_path": "relative/path/to/file1.py",
+      "is_required": true,
+      "expected_edit_locations": ["MyClass", "my_function()"],
+      "expected_function_names": ["my_function"],
+      "expected_behavior_change": "Update this function to correctly handle None values by raising ValueError."
+    }}
   ],
   "implementation_steps": [
     "Step 1: Detailed instruction on what function/class to add or edit in file1.py",
@@ -64,7 +69,7 @@ Produce a JSON object matching EXACTLY this schema:
 ### Rules
 
 1. `goal` must be clear, actionable, and state the intended technical outcome.
-2. `files_to_modify` must list ONLY relative file paths within the repo that need changes. Do not invent non-existent directories.
+2. `edit_targets` must list ONLY relative file paths within the repo that need changes. Provide specific edit locations and expected behavior changes for each target. Do not invent non-existent directories.
 3. `implementation_steps` must be ordered sequentially from dependencies to target logic to tests. Each step must name the specific function, method, or code construct being changed — never use phrases like "locate the method" or "if the code does X, then Y."
 4. `tests_to_run` must use the exact test command detected or a specific test file invocation.
 5. `requires_human` must be set to `true` if the issue is fundamentally ambiguous, missing critical context, or requests a breaking architectural refactor requiring maintainer approval.

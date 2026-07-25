@@ -1,10 +1,8 @@
-"""Thin OpenRouter client.
+"""OpenRouter-compatible client shim.
 
-Deliberately minimal — one function, one responsibility. When the Planner /
-Coding / Review agents show up later, they get their own functions here (or
-their own modules), each with the model chosen for that role passed in
-explicitly, per the "define model aliases in config, don't hardcode a model
-per agent" idea from the design plan.
+All actual provider logic lives in ``openforge.services.llm``.
+This module is kept for backwards compatibility and for the
+``summarize_conventions`` helper which is specific to the inspect step.
 """
 
 from __future__ import annotations
@@ -16,40 +14,14 @@ import httpx
 
 from openforge.config import Settings
 from openforge.models import RepositoryContext
+from openforge.services.llm import LLMProviderConfig
+
+# Re-export call_llm so existing imports keep working.
+from openforge.services.llm import call_llm as call_llm  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
-_OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 _PROMPT_PATH = Path(__file__).resolve().parent.parent.parent / "prompts" / "repo_summary.md"
-
-
-def call_llm(prompt: str, settings: Settings, timeout: float = 60.0, **kwargs) -> str:
-    """POST to OpenRouter and return the raw response text."""
-    try:
-        payload = {
-            "model": settings.openrouter_model,
-            "messages": [{"role": "user", "content": prompt}],
-        }
-        payload.update(kwargs)
-        
-        response = httpx.post(
-            _OPENROUTER_URL,
-            headers={
-                "Authorization": f"Bearer {settings.openrouter_api_key}",
-                "Content-Type": "application/json",
-            },
-            json=payload,
-            timeout=timeout,
-        )
-        response.raise_for_status()
-        data = response.json()
-        return data["choices"][0]["message"]["content"].strip()
-    except httpx.HTTPStatusError as exc:
-        raise RuntimeError(
-            f"OpenRouter returned HTTP {exc.response.status_code}: {exc.response.text[:300]}"
-        ) from exc
-    except (httpx.HTTPError, KeyError, IndexError) as exc:
-        raise RuntimeError(f"OpenRouter call failed: {exc}") from exc
 
 
 def summarize_conventions(
@@ -61,7 +33,7 @@ def summarize_conventions(
     fails — the RepositoryAnalyzer's output is fully usable without this.
     """
     if not settings.llm_enabled:
-        logger.debug("OPENROUTER_API_KEY not set — skipping conventions summary")
+        logger.debug("No LLM API key set — skipping conventions summary")
         return None
 
     try:
@@ -72,22 +44,13 @@ def summarize_conventions(
 
     prompt = template.format(repo_context_json=context.model_dump_json(exclude_none=True, indent=2))
 
+    config = LLMProviderConfig.from_provider_name(settings.llm_provider, settings)
+    if not config.enabled:
+        return None
+
     try:
-        response = httpx.post(
-            _OPENROUTER_URL,
-            headers={
-                "Authorization": f"Bearer {settings.openrouter_api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": settings.openrouter_model,
-                "messages": [{"role": "user", "content": prompt}],
-            },
-            timeout=timeout,
-        )
-        response.raise_for_status()
-        data = response.json()
-        return data["choices"][0]["message"]["content"].strip()
-    except (httpx.HTTPError, KeyError, IndexError) as exc:
+        from openforge.services.llm import call_llm
+        return call_llm(prompt, settings, timeout=timeout)
+    except Exception as exc:
         logger.warning("Conventions summary call failed, continuing without it: %s", exc)
         return None

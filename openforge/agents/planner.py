@@ -22,12 +22,11 @@ import httpx
 
 from openforge.config import Settings
 from openforge.models import ImplementationPlan, IssueFacts, RepositoryContext
-from openforge.services.openrouter import call_llm
+from openforge.services.llm import call_llm
 from openforge.utils import extract_json
 
 logger = logging.getLogger(__name__)
 
-_OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 _PLANNER_PROMPT_PATH = (
     Path(__file__).resolve().parent.parent.parent / "prompts" / "planner.md"
 )
@@ -35,10 +34,10 @@ _PLANNER_PROMPT_PATH = (
 _PLANNER_FQCN = "openforge.agents.planner.PlannerAgent"
 
 # Files larger than this are skipped rather than truncated mid-function.
-_MAX_FILE_BYTES = 20 * 1024  # 20 KB
+_MAX_FILE_BYTES = 12 * 1024  # 12 KB
 
 # Maximum number of mentioned files whose content is inlined into the prompt.
-_MAX_INLINE_FILES = 5
+_MAX_INLINE_FILES = 3
 
 # A risk entry that is just filler / generic placeholder — not substantive.
 # If every entry in risks[] matches this pattern we do NOT force requires_human.
@@ -109,41 +108,72 @@ class PlannerAgent:
         repo_context: RepositoryContext | None,
         issue_facts: IssueFacts,
         *,
-        timeout: float = 60.0,
+        run_dir: Path | None = None,
+        timeout: float = 300.0,
     ) -> ImplementationPlan:
         """Render the planner prompt and return a validated ImplementationPlan."""
         snippets = self._read_mentioned_files(repo_context, issue_facts)
         prompt = self._render_prompt(repo_context, issue_facts, snippets)
+        
+        # Calculate section breakdown (roughly)
+        def _toks(text: str) -> int: return len(text) // 4
+        
+        breakdown = {
+            "System Prompt": _toks(self._prompt_template.split("## Inputs")[0]),
+            "Repository Context": _toks(str(repo_context.to_json_file_dict()) if repo_context else ""), # Rough estimate of repo context
+            "Issue Facts": _toks(issue_facts.body + str(issue_facts.mentioned_files)),
+            "Relevant Source Files": _toks("".join(s.content or "" for s in snippets)),
+            "Instructions": _toks(self._prompt_template.split("## Instructions")[1] if "## Instructions" in self._prompt_template else ""),
+        }
+        
+        def _record_metrics(metrics: dict) -> None:
+            if run_dir:
+                metrics_path = run_dir / "prompt_metrics.json"
+                # Append to a list if file exists, or create new
+                all_metrics = []
+                if metrics_path.exists():
+                    try:
+                        all_metrics = json.loads(metrics_path.read_text())
+                    except Exception:
+                        pass
+                
+                metrics["agent"] = "PlannerAgent"
+                metrics["section_breakdown"] = breakdown
+                all_metrics.append(metrics)
+                metrics_path.write_text(json.dumps(all_metrics, indent=2))
+
         try:
-            raw_content = call_llm(prompt, self._settings, timeout=timeout)
+            raw_content = call_llm(prompt, self._settings, timeout=timeout, metrics_callback=_record_metrics)
         except RuntimeError as exc:
             raise PlannerError(str(exc)) from exc
         plan = self._parse_plan(raw_content)
 
         # Validate paths
-        valid_paths = []
+        valid_targets = []
         if repo_context and repo_context.source_path:
             repo_root = Path(repo_context.source_path).resolve()
-            for rel in plan.files_to_modify:
+            for target in plan.edit_targets:
+                rel = target.file_path
                 p = Path(rel)
                 if p.is_absolute() or ".." in p.parts:
                     logger.warning("Planner dropped invalid path traversal attempt: %s", rel)
                     continue
-                target = (repo_root / rel).resolve()
-                if not target.is_relative_to(repo_root):
+                abs_target = (repo_root / rel).resolve()
+                if not abs_target.is_relative_to(repo_root):
                     logger.warning("Planner dropped path outside repo root: %s", rel)
                     continue
-                valid_paths.append(rel)
+                valid_targets.append(target)
         else:
-            for rel in plan.files_to_modify:
+            for target in plan.edit_targets:
+                rel = target.file_path
                 p = Path(rel)
                 if p.is_absolute() or ".." in p.parts:
                     logger.warning("Planner dropped invalid path traversal attempt: %s", rel)
                     continue
-                valid_paths.append(rel)
+                valid_targets.append(target)
 
-        if valid_paths != plan.files_to_modify:
-            plan = plan.model_copy(update={"files_to_modify": valid_paths})
+        if len(valid_targets) != len(plan.edit_targets):
+            plan = plan.model_copy(update={"edit_targets": valid_targets})
 
         return plan
 
@@ -192,28 +222,54 @@ class PlannerAgent:
                 continue
 
             size = abs_path.stat().st_size
-            if size > _MAX_FILE_BYTES:
-                snippets.append(
-                    _FileSnippet(
-                        path=rel_path,
-                        content=None,
-                        skip_reason=f"too large to include ({size:,} bytes)",
-                    )
-                )
-                # A skipped-large file counts against the cap so we don't
-                # enumerate the whole list looking for small files.
-                included += 1
-                logger.debug(
-                    "Mentioned file too large (%d bytes), noting in prompt: %s",
-                    size,
-                    rel_path,
-                )
-                continue
-
             try:
                 content = abs_path.read_text(encoding="utf-8")
             except (UnicodeDecodeError, OSError):
                 logger.debug("Could not read mentioned file (binary/unreadable), skipping: %s", rel_path)
+                continue
+
+            if size > _MAX_FILE_BYTES:
+                if abs_path.suffix == ".py":
+                    try:
+                        import ast
+                        tree = ast.parse(content)
+                        
+                        class Skeletonizer(ast.NodeTransformer):
+                            def visit_FunctionDef(self, node):
+                                docstring = ast.get_docstring(node)
+                                body = []
+                                if docstring:
+                                    body.append(ast.Expr(value=ast.Constant(value=docstring)))
+                                body.append(ast.Expr(value=ast.Constant(value="... (body omitted for size) ...")))
+                                node.body = body
+                                return node
+                                
+                            def visit_AsyncFunctionDef(self, node):
+                                return self.visit_FunctionDef(node)
+                                
+                            def visit_ClassDef(self, node):
+                                self.generic_visit(node)
+                                return node
+                                
+                        tree = Skeletonizer().visit(tree)
+                        content = ast.unparse(tree)
+                        
+                        if len(content.encode("utf-8")) > _MAX_FILE_BYTES:
+                            content = content[:_MAX_FILE_BYTES] + "\n... (truncated for size) ..."
+                    except SyntaxError:
+                        content = content[:_MAX_FILE_BYTES] + "\n... (truncated for size) ..."
+                else:
+                    content = content[:_MAX_FILE_BYTES] + "\n... (truncated for size) ..."
+                    
+                snippets.append(
+                    _FileSnippet(
+                        path=rel_path,
+                        content=content,
+                        skip_reason=f"too large to include fully ({size:,} bytes) - skeletonized/truncated",
+                    )
+                )
+                included += 1
+                logger.debug("Included mentioned file in prompt (%d bytes, skeletonized): %s", size, rel_path)
                 continue
 
             snippets.append(_FileSnippet(path=rel_path, content=content))
