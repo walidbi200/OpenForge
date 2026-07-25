@@ -20,14 +20,14 @@ OpenForge currently implements the first four stages of its pipeline:
 
 ```bash
 uv sync                        # or: pip install -e ".[dev]"
-cp .env.example .env           # fill in OPENROUTER_API_KEY
+cp .env.example .env           # fill in API_KEY and LLM_PROVIDER
 ```
 
 The pipeline is split into four distinct CLI commands that you run in order. Each command reads from and writes to a versioned artifact folder in `runs/<id>/`:
 
 ```bash
-# 1. Analyze the local repository
-uv run openforge inspect ../some-local-clone
+# 1. Analyze the local repository or a GitHub URL
+uv run openforge inspect https://github.com/owner/repo
 
 # 2. Extract facts from a GitHub issue (requires GITHUB_TOKEN)
 uv run openforge analyze-issue https://github.com/owner/repo/issues/123
@@ -76,7 +76,7 @@ openforge/
 │       ├── repository_analyzer.py
 │       ├── issue_extractor.py
 │       ├── github.py             # GitHub API client
-│       └── openrouter.py         # Shared OpenRouter LLM client
+│       └── llm.py                # Multi-provider LLM client (OpenRouter, Dahl)
 ├── prompts/                      # LLM prompts versioned as files
 ├── tests/                        # Comprehensive test suite
 ├── workspace/                    # Cloned repos
