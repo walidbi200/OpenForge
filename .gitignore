@@ -5,6 +5,7 @@
 # else's repository into this one.
 workspace/*
 !workspace/.gitkeep
+workspace_det/
 
 # Run artifacts (repository.json, summary.md, logs.txt) are ephemeral.
 runs/
