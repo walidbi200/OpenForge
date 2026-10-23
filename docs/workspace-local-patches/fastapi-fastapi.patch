@@ -1,0 +1,37 @@
+diff --git a/fastapi/routing.py b/fastapi/routing.py
+index 7820777..1ae72d0 100644
+--- a/fastapi/routing.py
++++ b/fastapi/routing.py
+@@ -2887,6 +2887,8 @@ class APIRouter(routing.Router):
+         current_generate_unique_id = get_value_or_default(
+             generate_unique_id_function, self.generate_unique_id_function
+         )
++        if not self.prefix and path == "":
++            path = "/"
+         route = route_class(
+             self.prefix + path,
+             endpoint=endpoint,
+diff --git a/tests/test_routing.py b/tests/test_routing.py
+new file mode 100644
+index 0000000..e84f4b0
+--- /dev/null
++++ b/tests/test_routing.py
+@@ -0,0 +1,18 @@
++from fastapi import APIRouter, FastAPI
++from fastapi.testclient import TestClient
++
++
++def test_empty_path_in_prefixless_router() -> None:
++    app = FastAPI()
++    router = APIRouter()
++
++    @router.get("")
++    def get_root() -> dict[str, str]:
++        return {"message": "Hello World"}
++
++    app.include_router(router)
++
++    client = TestClient(app)
++    response = client.get("/")
++    assert response.status_code == 200, response.text
++    assert response.json() == {"message": "Hello World"}

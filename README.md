@@ -4,35 +4,40 @@ AI agent that automates the open-source contribution workflow — issue in,
 reviewed pull request out — with a human approval gate before anything is
 ever submitted. Working title; rename freely.
 
-## Status: Repository Agent only
+## Status: End-to-End Local Execution (MVP)
 
-This scaffold implements exactly one stage of the full pipeline: **clone a
-repo (or point at one on disk) and figure out what it is** — language,
-framework, package manager, test command, formatter/linter, CI, and the
-directories worth paying attention to. Everything else in the eventual
-pipeline (Planner, Coding, Testing, Review, PR Writer agents) is deliberately
-not built yet — see "What's next" below for why.
+OpenForge currently implements the first four stages of its pipeline:
+1. **Repository Analyzer**: Detects language, framework, and testing tools.
+2. **Issue Extractor**: Deterministically extracts facts from a GitHub issue.
+3. **Planner Agent**: Drafts a structured implementation plan from the repo and issue facts.
+4. **Coding Agent**: Implements the plan on a local branch and runs the test suite.
 
-Detection is heuristic (file presence + manifest parsing), not an LLM call.
-There's exactly one optional LLM step: a plain-English conventions summary,
-which only runs if `OPENROUTER_API_KEY` is set, and the tool works perfectly
-well without it.
+> [!WARNING]
+> **SECURITY WARNING — UNTRUSTED CODE EXECUTION**
+> The `openforge code` command checks out untrusted code and automatically executes its test suite on your host machine. Because test runners (like `pytest` or `npm test`) can execute arbitrary code embedded in the repository, you should **only run `openforge code` inside an isolated container, VM, or sandbox.**
 
 ## Quick start
 
 ```bash
 uv sync                        # or: pip install -e ".[dev]"
-cp .env.example .env           # fill in OPENROUTER_API_KEY if you want the summary step
-
-uv run openforge inspect https://github.com/psf/requests
-# or point at an issue URL directly — the repo is extracted from it:
-uv run openforge inspect https://github.com/psf/requests/issues/1234
-# or a repo you already have on disk:
-uv run openforge inspect ../some-local-clone
+cp .env.example .env           # fill in API_KEY and LLM_PROVIDER
 ```
 
-This clones (shallow, `--depth 1`) into `workspace/<owner>-<repo>/`, prints
-a report, and writes `repo.json` next to the clone.
+The pipeline is split into four distinct CLI commands that you run in order. Each command reads from and writes to a versioned artifact folder in `runs/<id>/`:
+
+```bash
+# 1. Analyze the local repository or a GitHub URL
+uv run openforge inspect https://github.com/owner/repo
+
+# 2. Extract facts from a GitHub issue (requires GITHUB_TOKEN)
+uv run openforge analyze-issue https://github.com/owner/repo/issues/123
+
+# 3. Generate an Implementation Plan
+uv run openforge plan --run <run-id>
+
+# 4. Generate Code and run tests on a local branch
+uv run openforge code --run <run-id>
+```
 
 ## Run the tests
 
@@ -40,47 +45,40 @@ a report, and writes `repo.json` next to the clone.
 uv run pytest -v
 ```
 
-The tests build synthetic repos in `tmp_path` (a FastAPI+ruff+pytest repo, a
-plain requirements.txt Flask repo, a TypeScript+React+pnpm+eslint repo, a
-Rust+axum repo, a Go+gin repo, and an empty directory) and assert what the
-agent should detect for each — no network access required.
+The test suite runs against synthetic repositories and mocks network calls to ensure the pipeline's deterministic logic works reliably without an active internet connection.
 
 ## What's next
 
-Per the phased build-out this scaffold is step one of:
+Per the phased build-out this scaffold is part of:
 
-1. ~~Repository Agent~~ — this scaffold.
-2. **Planner Agent** — takes a GitHub issue + this repo.json, produces a
-   structured implementation plan (no code yet).
-3. **Coding Agent** — hands the plan to Codex, implements only what the
-   plan says, returns a diff.
-4. **Testing Agent** — runs `context.test_command`, feeds failures back to
-   the Coding Agent, capped retries.
-5. **Human approval gate** — you see the diff and test results before
-   anything touches GitHub. Never skipped.
-6. **PR Writer** — opens a draft PR. Never auto-published.
+1. ~~Repository Analyzer~~ — Done.
+2. ~~Issue Extractor~~ — Done.
+3. ~~Planner Agent~~ — Done.
+4. ~~Coding Agent~~ — Done (writes code + runs tests once).
+5. **Testing Agent** (Roadmap) — Parses test failures and feeds them back to the Coding Agent in a capped retry loop.
+6. **PR Writer** (Roadmap) — Opens a draft PR. Never auto-published.
 
-Deliberately not in scope yet: issue discovery/ranking, a database instead
-of JSON files, multi-model orchestration, an automated review agent
-separate from your own read of the diff. Add those once steps 1–6 are
-proven on real, merged PRs — not before.
+Deliberately not in scope yet: issue discovery/ranking, a database instead of JSON files, multi-model orchestration, an automated review agent separate from your own read of the diff.
 
 ## Project layout
 
-```
+```text
 openforge/
 ├── openforge/
-│   ├── cli.py                    # Typer app — `openforge inspect ...`
-│   ├── config.py                 # env loading + logging, one Settings object
-│   ├── models.py                 # RepositoryContext (the repo.json shape)
-│   ├── utils.py                  # GitHub URL parsing (pure, unit-tested)
-│   ├── agents/
-│   │   └── repository.py         # clone + heuristic detection
-│   └── llm/
-│       └── openrouter_client.py  # optional conventions-summary call
-├── prompts/
-│   └── repo_summary.md           # the one prompt this stage uses, versioned as a file
-├── tests/
-│   └── test_repository_agent.py
-└── workspace/                    # gitignored — cloned repos + repo.json land here
+│   ├── cli.py                    # Typer app entrypoint
+│   ├── config.py                 # env loading + logging
+│   ├── models.py                 # Core data contracts (RepositoryContext, IssueFacts, ImplementationPlan)
+│   ├── utils.py                  # Shared helpers
+│   ├── agents/                   # LLM-driven reasoning
+│   │   ├── planner.py            # PlannerAgent
+│   │   └── coder.py              # CodingAgent
+│   └── services/                 # Deterministic execution
+│       ├── repository_analyzer.py
+│       ├── issue_extractor.py
+│       ├── github.py             # GitHub API client
+│       └── llm.py                # Multi-provider LLM client (OpenRouter, Dahl)
+├── prompts/                      # LLM prompts versioned as files
+├── tests/                        # Comprehensive test suite
+├── workspace/                    # Cloned repos
+└── runs/                         # Execution artifacts (JSON files)
 ```

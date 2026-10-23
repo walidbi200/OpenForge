@@ -31,6 +31,10 @@ _ISSUE_URL_RE = re.compile(
 )
 
 
+class IssueNotActionableError(RuntimeError):
+    """Raised when a GitHub issue is closed, is a PR, or already has a merged fix."""
+
+
 class GitHubService:
     """Thin wrapper around the GitHub REST API.
 
@@ -59,9 +63,9 @@ class GitHubService:
         """Return the raw GitHub API response dict for one issue.
 
         Raises:
-            PermissionError  – 403 (rate-limited or private repo without token)
-            FileNotFoundError – 404 (issue / repo not found)
-            RuntimeError     – any other HTTP error
+            IssueNotActionableError – issue is closed, is a PR, or has a merged fix.
+            PermissionError         – 403 (rate-limited or private repo without token)
+            RuntimeError            – any other HTTP error (including 404)
         """
         url = f"{_API_BASE}/repos/{owner}/{repo}/issues/{number}"
         headers = {
@@ -82,18 +86,91 @@ class GitHubService:
                 f"GitHub API returned 403 for {owner}/{repo}#{number}. "
                 "Set GITHUB_TOKEN to avoid rate limits or access private repos."
             )
-        if response.status_code == 404:
-            raise FileNotFoundError(
-                f"Issue #{number} not found in {owner}/{repo}. "
-                "Check that the repo and issue number are correct."
-            )
+
         if not response.is_success:
             raise RuntimeError(
                 f"GitHub API returned {response.status_code} for "
                 f"{owner}/{repo}#{number}: {response.text[:200]}"
             )
 
-        return response.json()
+        raw = response.json()
+        self._assert_actionable(owner, repo, number, raw, headers)
+        return raw
+
+    def _assert_actionable(
+        self,
+        owner: str,
+        repo: str,
+        number: int,
+        raw: dict[str, Any],
+        headers: dict[str, str],
+    ) -> None:
+        """Validate that the fetched issue is actually open and unaddressed."""
+        state: str = raw.get("state", "")
+        state_reason: str | None = raw.get("state_reason")
+
+        if state != "open":
+            reason_fragment = f" (reason: {state_reason})" if state_reason else ""
+            raise IssueNotActionableError(
+                f"Issue {owner}/{repo}#{number} is not open — state='{state}'{reason_fragment}."
+            )
+
+        if "pull_request" in raw:
+            raise IssueNotActionableError(
+                f"{owner}/{repo}#{number} is a pull request, not an issue."
+            )
+
+        # Check the timeline for a cross-referenced / closed event that links
+        # to an already-merged pull request.
+        timeline_url = raw.get("timeline_url")
+        if timeline_url:
+            self._check_timeline_for_merged_fix(timeline_url, owner, repo, number, headers)
+
+    def _check_timeline_for_merged_fix(
+        self,
+        timeline_url: str,
+        owner: str,
+        repo: str,
+        number: int,
+        headers: dict[str, str],
+    ) -> None:
+        """Scan timeline events for a merged PR that closes this issue."""
+        try:
+            resp = httpx.get(timeline_url, headers=headers, timeout=self._timeout)
+        except httpx.TimeoutException:
+            return  # degrade gracefully on timeout
+
+        if not resp.is_success:
+            return  # degrade gracefully on error
+
+        events = resp.json()
+        if not isinstance(events, list):
+            return
+
+        for event in events:
+            if event.get("event") not in ("cross-referenced", "closed"):
+                continue
+            source = event.get("source", {})
+            pr = source.get("issue", {}) if isinstance(source, dict) else {}
+            if not pr:
+                pr = event.get("pull_request", {})
+            if not pr:
+                # Timeline "closed" events may carry the PR directly in the payload.
+                pr = event.get("source", {}).get("pull_request", {}) if isinstance(event.get("source"), dict) else {}
+            if not pr:
+                continue
+            if "pull_request" not in pr:
+                continue
+            pr_url: str | None = pr.get("html_url")
+            pr_state: str = pr.get("state", "")
+            merged: bool = pr.get("merged", False) or pr.get("merged_at") is not None
+            if pr_state == "closed" and not merged:
+                continue  # closed but not merged — doesn't count as addressed
+            if merged or pr_state == "merged":
+                raise IssueNotActionableError(
+                    f"Issue {owner}/{repo}#{number} appears to be addressed by "
+                    f"a merged pull request: {pr_url or pr.get('url', 'unknown')}."
+                )
 
     @staticmethod
     def parse_issue_url(url: str) -> tuple[str, str, int]:

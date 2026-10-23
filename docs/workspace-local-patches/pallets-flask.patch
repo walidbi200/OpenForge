@@ -1,0 +1,73 @@
+diff --git a/src/flask/app.py b/src/flask/app.py
+index 652b9bb..eaf9b40 100644
+--- a/src/flask/app.py
++++ b/src/flask/app.py
+@@ -721,7 +721,11 @@ class Flask(App):
+         sn_host = sn_port = None
+ 
+         if server_name:
+-            sn_host, _, sn_port = server_name.partition(":")
++            if server_name.startswith("["):
++                sn_host, _, sn_port = server_name[1:].partition("]:")
++                sn_host = f"[{sn_host}]"
++            else:
++                sn_host, _, sn_port = server_name.rpartition(":")
+ 
+         if not host:
+             if sn_host:
+diff --git a/src/flask/testing.py b/src/flask/testing.py
+index 68b1ab4..b0a948f 100644
+--- a/src/flask/testing.py
++++ b/src/flask/testing.py
+@@ -176,8 +176,15 @@ class FlaskClient(Client):
+         with ctx:
+             app.session_interface.save_session(app, sess, resp)
+ 
++        host = ctx.request.host
++
++        if host.startswith("["):
++            host = host.partition("]")[0][1:]
++        else:
++            host = host.rpartition(":")[0]
++
+         self._update_cookies_from_response(
+-            ctx.request.host.partition(":")[0],
++            host,
+             ctx.request.path,
+             resp.headers.getlist("Set-Cookie"),
+         )
+diff --git a/tests/test_basic.py b/tests/test_basic.py
+index 1d9d83f..3d2f3ba 100644
+--- a/tests/test_basic.py
++++ b/tests/test_basic.py
+@@ -1910,6 +1910,7 @@ def test_run_server_port(monkeypatch, app):
+         ("localhost", 0, "localhost:8080", "localhost", 0),
+         (None, None, "localhost:8080", "localhost", 8080),
+         (None, None, "localhost:0", "localhost", 0),
++        (None, None, "[::1]:8080", "::1", 8080),
+     ),
+ )
+ def test_run_from_config(
+diff --git a/tests/test_testing.py b/tests/test_testing.py
+index c172f14..dfbc740 100644
+--- a/tests/test_testing.py
++++ b/tests/test_testing.py
+@@ -181,6 +181,18 @@ def test_session_transactions_no_null_sessions():
+         assert "Session backend did not open a session" in str(e.value)
+ 
+ 
++def test_session_transaction_ipv6(app, client):
++    @app.route("/")
++    def index():
++        return str(flask.session["foo"])
++
++    with client:
++        with client.session_transaction(base_url="http://[::1]:5000/") as sess:
++            sess["foo"] = [42]
++        rv = client.get("/", base_url="http://[::1]:5000/")
++        assert rv.data == b"[42]"
++
++
+ def test_session_transactions_keep_context(app, client, req_ctx):
+     client.get("/")
+     req = flask.request._get_current_object()

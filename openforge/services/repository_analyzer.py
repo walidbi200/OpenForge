@@ -143,18 +143,21 @@ class RepositoryAnalyzer:
 
     def _detect_language(self, path: Path) -> tuple[str | None, dict[str, str]]:
         evidence: dict[str, str] = {}
-        found: list[str] = []
+        primary: str | None = None
+        primary_marker: str | None = None
+        
         for marker, lang in _LANGUAGE_MARKERS:
             if (path / marker).exists():
-                found.append(lang)
+                if primary is None:
+                    primary = lang
+                    primary_marker = marker
                 evidence.setdefault("language_candidates", "")
                 evidence["language_candidates"] += f"{marker} -> {lang}; "
 
-        if not found:
+        if not primary:
             return None, evidence
 
-        primary = found[0]
-        evidence["language"] = f"found {_LANGUAGE_MARKERS[[l for _, l in _LANGUAGE_MARKERS].index(primary)][0]}"
+        evidence["language"] = f"found {primary_marker}"
 
         # Upgrade JavaScript -> TypeScript if there's real evidence of it.
         if primary == "JavaScript":
@@ -363,8 +366,12 @@ class RepositoryAnalyzer:
         pkg_path = path / "package.json"
         if not pkg_path.exists():
             return None
+        content = pkg_path.read_text(errors="ignore").strip()
+        if not content:
+            return None
         try:
-            return json.loads(pkg_path.read_text(errors="ignore"))
+            data = json.loads(content)
+            return data if isinstance(data, dict) else None
         except json.JSONDecodeError:
             logger.warning("Couldn't parse package.json at %s", pkg_path)
             return None
@@ -372,9 +379,14 @@ class RepositoryAnalyzer:
     def _json_dependency_names(self, json_path: Path) -> set[str]:
         if not json_path.exists():
             return set()
+        content = json_path.read_text(errors="ignore").strip()
+        if not content:
+            return set()
         try:
-            data = json.loads(json_path.read_text(errors="ignore"))
+            data = json.loads(content)
         except json.JSONDecodeError:
+            return set()
+        if not isinstance(data, dict):
             return set()
         return set(data.get("require", {}))
 

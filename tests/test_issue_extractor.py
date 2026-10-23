@@ -21,7 +21,7 @@ from __future__ import annotations
 import pytest
 
 from openforge.models import CodeBlock, IssueFacts
-from openforge.services.github import GitHubService
+from openforge.services.github import GitHubService, IssueNotActionableError
 from openforge.services.issue_extractor import IssueExtractor
 from tests.issue_catalog import ISSUE_CATALOG, IssueFixture
 
@@ -393,7 +393,128 @@ class TestGitHubServiceURLParsing:
 
 
 # ---------------------------------------------------------------------------
-# 4. Artifact System, Checksum & Manifest tests
+# 4. GitHubService fetch_issue validation
+# ---------------------------------------------------------------------------
+
+
+class _FakeResponse:
+    def __init__(self, json_data=None, status_code=200, text=""):
+        self.status_code = status_code
+        self._json = json_data
+        self.text = text
+        self.is_success = 200 <= status_code < 300
+
+    def json(self):
+        return self._json
+
+
+class TestGitHubServiceFetchIssueValidation:
+    """Mocked network tests for fetch_issue actionability guards."""
+
+    def test_closed_issue_raises(self, monkeypatch) -> None:
+        """Closed issue with state_reason → IssueNotActionableError."""
+        def fake_get(url, **kwargs):
+            return _FakeResponse(
+                json_data={
+                    "state": "closed",
+                    "state_reason": "not_planned",
+                    "title": "Old bug",
+                    "number": 42,
+                }
+            )
+
+        monkeypatch.setattr("openforge.services.github.httpx.get", fake_get)
+        svc = GitHubService()
+        with pytest.raises(IssueNotActionableError) as exc_info:
+            svc.fetch_issue("owner", "repo", 42)
+        assert "state='closed'" in str(exc_info.value)
+        assert "reason: not_planned" in str(exc_info.value)
+
+    def test_pr_url_raises(self, monkeypatch) -> None:
+        """PR masquerading as issue URL → IssueNotActionableError."""
+        def fake_get(url, **kwargs):
+            return _FakeResponse(
+                json_data={
+                    "state": "open",
+                    "title": "Feature PR",
+                    "number": 99,
+                    "pull_request": {"url": "https://api.github.com/repos/owner/repo/pulls/99"},
+                }
+            )
+
+        monkeypatch.setattr("openforge.services.github.httpx.get", fake_get)
+        svc = GitHubService()
+        with pytest.raises(IssueNotActionableError) as exc_info:
+            svc.fetch_issue("owner", "repo", 99)
+        assert "is a pull request, not an issue" in str(exc_info.value)
+
+    def test_open_issue_with_linked_merged_pr_raises(self, monkeypatch) -> None:
+        """Technically open but linked merged fix → IssueNotActionableError."""
+        timeline_url = "https://api.github.com/repos/owner/repo/issues/7/timeline"
+
+        def fake_get(url, **kwargs):
+            if url.endswith("/issues/7"):
+                return _FakeResponse(
+                    json_data={
+                        "state": "open",
+                        "title": "Bug",
+                        "number": 7,
+                        "timeline_url": timeline_url,
+                    }
+                )
+            if url == timeline_url:
+                return _FakeResponse(
+                    json_data=[
+                        {
+                            "event": "cross-referenced",
+                            "source": {
+                                "issue": {
+                                    "pull_request": {},
+                                    "html_url": "https://github.com/owner/repo/pull/8",
+                                    "state": "closed",
+                                    "merged": True,
+                                    "merged_at": "2024-01-01T00:00:00Z",
+                                }
+                            },
+                        }
+                    ]
+                )
+            return _FakeResponse(status_code=404)
+
+        monkeypatch.setattr("openforge.services.github.httpx.get", fake_get)
+        svc = GitHubService()
+        with pytest.raises(IssueNotActionableError) as exc_info:
+            svc.fetch_issue("owner", "repo", 7)
+        assert "addressed by a merged pull request" in str(exc_info.value)
+        assert "https://github.com/owner/repo/pull/8" in str(exc_info.value)
+
+    def test_genuinely_open_issue_succeeds(self, monkeypatch) -> None:
+        """Open issue without linked merged PR returns raw dict."""
+        timeline_url = "https://api.github.com/repos/owner/repo/issues/3/timeline"
+
+        def fake_get(url, **kwargs):
+            if url.endswith("/issues/3"):
+                return _FakeResponse(
+                    json_data={
+                        "state": "open",
+                        "title": "Real bug",
+                        "number": 3,
+                        "timeline_url": timeline_url,
+                    }
+                )
+            if url == timeline_url:
+                return _FakeResponse(json_data=[])
+            return _FakeResponse(status_code=404)
+
+        monkeypatch.setattr("openforge.services.github.httpx.get", fake_get)
+        svc = GitHubService()
+        raw = svc.fetch_issue("owner", "repo", 3)
+        assert raw["state"] == "open"
+        assert raw["title"] == "Real bug"
+
+
+# ---------------------------------------------------------------------------
+# 5. Artifact System, Checksum & Manifest tests
 # ---------------------------------------------------------------------------
 
 
@@ -481,11 +602,11 @@ class TestMilestone4Models:
     """Verify ImplementationPlan model schema, catalog fixtures, and serialisability."""
 
     def test_implementation_plan_contract(self) -> None:
-        from openforge.models import Artifact, ImplementationPlan, SourceArtifact
+        from openforge.models import Artifact, ImplementationPlan, SourceArtifact, EditTarget
 
         plan = ImplementationPlan(
             goal="Fix 422 Unprocessable Entity in /api/users",
-            files_to_modify=["routers/users.py"],
+            edit_targets=[EditTarget(file_path="routers/users.py")],
             implementation_steps=[
                 "Parse nested JSON address parameter using Pydantic model",
                 "Update type annotation in create_user route handler",
@@ -511,7 +632,7 @@ class TestMilestone4Models:
         assert dict_out["generator"] == "openforge.agents.planner.PlannerAgent"
         assert len(dict_out["provenance"]["source_artifacts"]) == 2
         assert dict_out["data"]["goal"].startswith("Fix 422")
-        assert len(dict_out["data"]["files_to_modify"]) == 1
+        assert len(dict_out["data"]["edit_targets"]) == 1
 
     def test_planning_catalog_fixtures(self) -> None:
         from tests.planning_catalog import PLANNING_CATALOG, PlanningFixture

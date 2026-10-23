@@ -6,6 +6,7 @@ openforge inspect        Milestone 2 — analyze a repository → repository.jso
 openforge analyze-issue  Milestone 3 — extract issue facts  → issue_facts.json
 openforge plan           Milestone 4 — build an implementation plan → plan.json
 openforge code           Milestone 5 — generate code changes → code.json
+openforge benchmark      Benchmark RepositoryAnalyzer accuracy.
 openforge version        Print version.
 """
 
@@ -32,11 +33,13 @@ from openforge.models import (
     RunManifest,
     SourceArtifact,
     compute_sha256,
+    verify_artifact_file,
 )
-from openforge.services.github import GitHubService
+from openforge.services.github import GitHubService, IssueNotActionableError
 from openforge.services.issue_extractor import IssueExtractor
 from openforge.services.openrouter import summarize_conventions
 from openforge.services.repository_analyzer import RepositoryAnalyzer
+from openforge.services.llm import LLMProviderConfig
 
 app = typer.Typer(
     name="openforge",
@@ -102,7 +105,12 @@ def inspect(
         help="Skip the optional conventions summary even if an API key is set.",
     ),
 ) -> None:
-    """Run the RepositoryAnalyzer against TARGET and print what it found."""
+    """Clone (if URL) and analyze a repository → repository.json.
+    
+    This implements Phase 1 of the OpenForge pipeline (Repository Analysis).
+    It produces a RepositoryContext artifact containing deterministic facts 
+    about the repository's language, framework, and tooling.
+    """
     settings = get_settings()
     configure_logging(settings.log_level)
 
@@ -165,7 +173,7 @@ def inspect(
     _update_manifest(run_dir, target, [p.name for p in written])
 
     # ---- print the runs/ tree ----------------------------------------------
-    written_files = sorted(p for p in run_dir.iterdir() if p.is_file())
+    written_files = sorted((p for p in run_dir.iterdir() if p.is_file()), key=lambda p: p.name)
     console.print(f"\n[bold]runs/[/bold]")
     console.print(f"└── [cyan]{run_id}/[/cyan]")
     for i, p in enumerate(written_files):
@@ -178,8 +186,10 @@ def inspect(
 # ---------------------------------------------------------------------------
 
 
-def _load_repository_context(repo_json_path: Path) -> RepositoryContext:
+def _load_repository_context(repo_json_path: Path, no_verify: bool = False) -> RepositoryContext:
     """Load RepositoryContext from json, handling both raw and Artifact-wrapped JSON."""
+    if not no_verify:
+        verify_artifact_file(repo_json_path)
     raw = json.loads(repo_json_path.read_text())
     if "data" in raw and isinstance(raw["data"], dict) and "repo" in raw["data"]:
         return RepositoryContext(**raw["data"])
@@ -197,8 +207,18 @@ def analyze_issue(
         "--run",
         help="Existing run ID whose repository.json to reuse (skips re-cloning).",
     ),
+    no_verify: bool = typer.Option(
+        False,
+        "--no-verify",
+        help="Skip artifact checksum verification.",
+    ),
 ) -> None:
-    """Fetch a GitHub issue and extract structured facts → issue_facts.json."""
+    """Fetch a GitHub issue and extract structured facts → issue_facts.json.
+    
+    This implements Phase 2 of the OpenForge pipeline (Issue Extraction).
+    It produces an IssueFacts artifact containing deterministic facts 
+    about the issue, such as mentioned files, checklists, and tracebacks.
+    """
     settings = get_settings()
     configure_logging(settings.log_level)
 
@@ -226,7 +246,11 @@ def analyze_issue(
                 "Run `openforge inspect` first, or omit --run."
             )
             raise typer.Exit(code=1)
-        repo_context = _load_repository_context(repo_json_path)
+        try:
+            repo_context = _load_repository_context(repo_json_path, no_verify=no_verify)
+        except ValueError as exc:
+            console.print(f"[bold red]Verification Error:[/bold red] {exc}")
+            raise typer.Exit(code=1)
         rich_source_artifacts.append(
             SourceArtifact(
                 artifact="RepositoryContext",
@@ -281,7 +305,7 @@ def analyze_issue(
     with console.status(f"[bold cyan]Fetching issue #{issue_number}..."):
         try:
             raw_issue = github.fetch_issue(owner, repo_name, issue_number)
-        except (PermissionError, FileNotFoundError, RuntimeError) as exc:
+        except (IssueNotActionableError, PermissionError, RuntimeError) as exc:
             console.print(f"[bold red]Error:[/bold red] {exc}")
             raise typer.Exit(code=1)
 
@@ -337,7 +361,7 @@ def analyze_issue(
     _print_issue_facts(facts)
 
     # 9. Print runs/ tree.
-    written_files = sorted(p for p in run_dir.iterdir() if p.is_file())
+    written_files = sorted((p for p in run_dir.iterdir() if p.is_file()), key=lambda p: p.name)
     console.print(f"\n[bold]runs/[/bold]")
     console.print(f"└── [cyan]{run_dir.name}/[/cyan]")
     for i, p in enumerate(written_files):
@@ -361,17 +385,28 @@ def plan(
         "--run",
         help="Existing run ID whose repository.json and issue_facts.json to reuse.",
     ),
+    no_verify: bool = typer.Option(
+        False,
+        "--no-verify",
+        help="Skip artifact checksum verification.",
+    ),
 ) -> None:
-    """Generate an ImplementationPlan for a GitHub issue → plan.json."""
+    """Generate an ImplementationPlan for a GitHub issue → plan.json.
+    
+    This implements Phase 3 of the OpenForge pipeline (Planning).
+    It invokes the PlannerAgent to reason over the repository context and
+    issue facts, producing a structured ImplementationPlan artifact.
+    """
     settings = get_settings()
     configure_logging(settings.log_level)
 
     # --- Fail fast on missing API key before doing any network work ----------
     if not settings.llm_enabled:
         console.print(
-            "[bold red]Error:[/bold red] OPENROUTER_API_KEY is not set.\n"
-            "The Planner requires an LLM. Export the key and retry:\n\n"
-            "  export OPENROUTER_API_KEY=sk-or-..."
+            "[bold red]Error:[/bold red] AGENTROUTER_API_KEY is not set.\n"
+            "OpenForge is configured to use AgentRouter.\n"
+            "Please export:\n\n"
+            "  export AGENTROUTER_API_KEY=..."
         )
         raise typer.Exit(code=1)
 
@@ -397,7 +432,11 @@ def plan(
         facts_json_path = run_dir / "issue_facts.json"
 
         if repo_json_path.exists():
-            repo_context = _load_repository_context(repo_json_path)
+            try:
+                repo_context = _load_repository_context(repo_json_path, no_verify=no_verify)
+            except ValueError as exc:
+                console.print(f"[bold red]Verification Error:[/bold red] {exc}")
+                raise typer.Exit(code=1)
             rich_source_artifacts.append(
                 SourceArtifact(
                     artifact="RepositoryContext",
@@ -414,6 +453,12 @@ def plan(
             )
 
         if facts_json_path.exists():
+            if not no_verify:
+                try:
+                    verify_artifact_file(facts_json_path)
+                except ValueError as exc:
+                    console.print(f"[bold red]Verification Error:[/bold red] {exc}")
+                    raise typer.Exit(code=1)
             raw = json.loads(facts_json_path.read_text())
             facts_data = raw.get("data", raw)
             issue_facts = IssueFacts(**facts_data)
@@ -476,7 +521,7 @@ def plan(
         with console.status(f"[bold cyan]Fetching issue #{issue_number}..."):
             try:
                 raw_issue = github.fetch_issue(owner, repo_name, issue_number)
-            except (PermissionError, FileNotFoundError, RuntimeError) as exc:
+            except (IssueNotActionableError, PermissionError, RuntimeError) as exc:
                 console.print(f"[bold red]Error:[/bold red] {exc}")
                 raise typer.Exit(code=1)
 
@@ -520,7 +565,7 @@ def plan(
     planner = PlannerAgent(settings)
     with console.status("[bold cyan]Generating implementation plan (LLM)..."):
         try:
-            impl_plan = planner.plan(repo_context, issue_facts)
+            impl_plan = planner.plan(repo_context, issue_facts, run_dir=run_dir)
         except PlannerError as exc:
             console.print(f"[bold red]Planner error:[/bold red] {exc}")
             raise typer.Exit(code=1)
@@ -548,7 +593,7 @@ def plan(
     _print_plan(impl_plan)
 
     # --- Print runs/ tree ---------------------------------------------------
-    written_files = sorted(p for p in run_dir.iterdir() if p.is_file())
+    written_files = sorted((p for p in run_dir.iterdir() if p.is_file()), key=lambda p: p.name)
     console.print(f"\n[bold]runs/[/bold]")
     console.print(f"└── [cyan]{run_dir.name}/[/cyan]")
     for i, p in enumerate(written_files):
@@ -568,16 +613,32 @@ def code(
         "--run",
         help="Run ID whose repository.json and plan.json to use.",
     ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Force execution even if the plan requires human sign-off.",
+    ),
+    no_verify: bool = typer.Option(
+        False,
+        "--no-verify",
+        help="Skip artifact checksum verification.",
+    ),
 ) -> None:
-    """Generate code from an ImplementationPlan and create a local git branch → code.json."""
+    """Generate code from an ImplementationPlan and create a local git branch → code.json.
+    
+    This implements Phase 4 of the OpenForge pipeline (Coding).
+    It invokes the CodingAgent to implement the plan, write files,
+    run tests, and create a reviewable git branch.
+    """
     settings = get_settings()
     configure_logging(settings.log_level)
 
     if not settings.llm_enabled:
         console.print(
-            "[bold red]Error:[/bold red] OPENROUTER_API_KEY is not set.\n"
-            "The CodingAgent requires an LLM. Export the key and retry:\n\n"
-            "  export OPENROUTER_API_KEY=sk-or-..."
+            "[bold red]Error:[/bold red] AGENTROUTER_API_KEY is not set.\n"
+            "OpenForge is configured to use AgentRouter.\n"
+            "Please export:\n\n"
+            "  export AGENTROUTER_API_KEY=..."
         )
         raise typer.Exit(code=1)
 
@@ -591,7 +652,11 @@ def code(
             "Run `openforge inspect` or `openforge plan` first."
         )
         raise typer.Exit(code=1)
-    repo_context = _load_repository_context(repo_json_path)
+    try:
+        repo_context = _load_repository_context(repo_json_path, no_verify=no_verify)
+    except ValueError as exc:
+        console.print(f"[bold red]Verification Error:[/bold red] {exc}")
+        raise typer.Exit(code=1)
     console.print(f"[green]✓[/green] Loaded repository context from runs/{run}/")
 
     # --- Load plan.json -----------------------------------------------------
@@ -602,10 +667,27 @@ def code(
             "Run `openforge plan` first."
         )
         raise typer.Exit(code=1)
+    
+    if not no_verify:
+        try:
+            verify_artifact_file(plan_json_path)
+        except ValueError as exc:
+            console.print(f"[bold red]Verification Error:[/bold red] {exc}")
+            raise typer.Exit(code=1)
+
     raw_plan = json.loads(plan_json_path.read_text())
     plan_data = raw_plan.get("data", raw_plan)
     impl_plan = ImplementationPlan(**plan_data)
     console.print(f"[green]✓[/green] Loaded plan from runs/{run}/")
+
+    if impl_plan.requires_human and not force:
+        console.print(
+            "[bold red]Error:[/bold red] The plan requires human sign-off before coding.\n"
+            "Please review the plan.json manually and use --force to proceed."
+        )
+        raise typer.Exit(code=1)
+    elif impl_plan.requires_human and force:
+        logger.warning("Proceeding with requires_human=True plan due to --force flag.")
 
     # --- Derive issue number from plan provenance (best-effort) -------------
     issue_number: int | None = None
@@ -622,14 +704,14 @@ def code(
 
     # --- Run CodingAgent (LLM + git + tests) --------------------------------
     agent = CodingAgent(settings)
-    console.print("[bold cyan]Generating code and running tests...[/bold cyan]")
-    try:
-        result = agent.implement(
-            repo_context, impl_plan, issue_number=issue_number
-        )
-    except CoderError as exc:
-        console.print(f"[bold red]Coder error:[/bold red] {exc}")
-        raise typer.Exit(code=1)
+    with console.status("[bold cyan]Generating code and running tests..."):
+        try:
+            result = agent.implement(
+                repo_context, impl_plan, issue_number=issue_number, run_dir=run_dir
+            )
+        except CoderError as exc:
+            console.print(f"[bold red]Coder error:[/bold red] {exc}")
+            raise typer.Exit(code=1)
 
     console.print(f"[green]✓[/green] Code generated")
 
@@ -664,7 +746,7 @@ def code(
     _print_code_result(result)
 
     # --- Print runs/ tree ---------------------------------------------------
-    written_files = sorted(p for p in run_dir.iterdir() if p.is_file())
+    written_files = sorted((p for p in run_dir.iterdir() if p.is_file()), key=lambda p: p.name)
     console.print(f"\n[bold]runs/[/bold]")
     console.print(f"└── [cyan]{run}/[/cyan]")
     for i, p in enumerate(written_files):
@@ -721,7 +803,7 @@ def _print_context(context) -> None:
         console.print(context.conventions_summary)
     elif not context.conventions_summary:
         console.print(
-            "\n[dim]No conventions summary (set OPENROUTER_API_KEY to enable, "
+            "\n[dim]No conventions summary (set AGENTROUTER_API_KEY to enable, "
             "or pass --no-llm to silence this).[/dim]"
         )
 
@@ -742,10 +824,17 @@ def _print_code_result(result) -> None:
         console.print("[dim](no changes detected by git diff)[/dim]")
 
     for tr in result.test_results:
-        status = "[bold green]PASSED[/bold green]" if tr.passed else "[bold red]FAILED[/bold red]"
+        if tr.inconclusive:
+            status = "[bold yellow]INCONCLUSIVE[/bold yellow]"
+        elif tr.passed:
+            status = "[bold green]PASSED[/bold green]"
+        else:
+            status = "[bold red]FAILED[/bold red]"
         console.print(f"\n[bold]Tests:[/bold] {tr.command}  →  {status} (exit {tr.returncode})")
         if tr.stdout:
-            console.print(tr.stdout[-4000:])
+            # Wrap in Text() to prevent Rich from interpreting stdout markup tags
+            from rich.text import Text
+            console.print(Text(tr.stdout[-4000:]))
         if tr.stderr and not tr.passed:
             console.print("[dim]stderr:[/dim]")
             console.print(tr.stderr[-2000:])
@@ -820,8 +909,121 @@ def _print_issue_facts(facts: IssueFacts) -> None:
             console.print(f"  • {f}")
 
 
+# ---------------------------------------------------------------------------
+# openforge benchmark
+# ---------------------------------------------------------------------------
+
+@app.command()
+def benchmark(
+    repo: list[str] = typer.Option(
+        None,
+        "--repo",
+        help="Specific repository name(s) to benchmark (e.g., Flask). Can be used multiple times.",
+    ),
+    update: bool = typer.Option(
+        False,
+        "--update",
+        help="Force a clean clone by removing existing workspaces.",
+    ),
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        help="Output raw JSON instead of human-readable summary.",
+    ),
+) -> None:
+    """Run accuracy benchmarks for RepositoryAnalyzer."""
+    settings = get_settings()
+    configure_logging(settings.log_level)
+
+    from openforge.benchmarks.runner import BenchmarkRunner
+    from openforge.benchmarks.report import BenchmarkReporter
+
+    json_path = Path(__file__).parent / "benchmarks" / "repositories.json"
+    if not json_path.exists():
+        console.print(f"[bold red]Error:[/bold red] Benchmark catalog not found at {json_path}")
+        raise typer.Exit(code=1)
+
+    runner = BenchmarkRunner(settings.workspace_dir, json_path)
+    
+    # We could stream results with Rich progress, but for simplicity, let's just use console.status
+    if not json_output:
+        console.print("\n[bold]Running RepositoryAnalyzer Benchmark[/bold]\n")
+
+    results = runner.run(repo_names=repo, update=update)
+    reporter = BenchmarkReporter(settings.runs_dir)
+    out_dir = reporter.generate_report(results)
+
+    if json_output:
+        summary_path = out_dir / "summary.json"
+        console.print(summary_path.read_text())
+        return
+
+    # Print the terminal summary matching the user's mock output
+    for i, r in enumerate(results.repos, 1):
+        console.print(f"[{i}/{len(results.repos)}] {r.name}")
+        console.print("✓ cloned" if update else "✓ reused clone")
+        console.print("✓ analyzed\n")
+        
+        console.print("[bold]Accuracy[/bold]\n")
+        for f, match in r.matches.items():
+            icon = "[green]✓[/green]" if match else "[red]✗[/red]"
+            console.print(f"{f:<17} {icon}")
+        
+        console.print("\n[bold]Score[/bold]")
+        console.print(f"{r.correct_count} / {r.total_count}")
+        console.print("-" * 32 + "\n")
+
+    console.print("[bold]Overall[/bold]\n")
+    console.print(f"Repositories:\n{len(results.repos)}\n")
+    console.print(f"Perfect:\n{len(results.perfect_repos)}\n")
+    
+    total_correct = sum(r.correct_count for r in results.repos)
+    total_fields = sum(r.total_count for r in results.repos)
+    console.print(f"Field accuracy:\n{total_correct} / {total_fields}\n")
+    
+    console.print(f"Overall:\n{results.overall_accuracy:.1f}%\n")
+    console.print(f"Report saved to: {out_dir}/report.md")
+
+
 def main() -> None:
+    import sys
+    if sys.version_info < (3, 11):
+        print("Error: OpenForge requires Python 3.11+", file=sys.stderr)
+        sys.exit(1)
     app()
+
+
+@app.command()
+def health() -> None:
+    """Lightweight connectivity check for the configured provider."""
+    settings = get_settings()
+    configure_logging(settings.log_level)
+
+    config = LLMProviderConfig.from_settings(settings)
+    if not config.enabled:
+        console.print(
+            "[bold red]Error:[/bold red] AGENTROUTER_API_KEY is not configured.\n"
+            "OpenForge is configured to use AgentRouter.\n"
+            "Please export:\n\n"
+            "  export AGENTROUTER_API_KEY=..."
+        )
+        raise typer.Exit(code=1)
+
+    import time as _time
+    from openforge.services.llm import call_llm
+
+    start = _time.time()
+    try:
+        content = call_llm("Reply with exactly OK.", settings, timeout=30)
+        latency = round(_time.time() - start, 2)
+        console.print(f"[bold]Provider:[/bold] {config.provider}")
+        console.print(f"[bold]Model:[/bold] {config.model}")
+        console.print(f"[bold]Endpoint:[/bold] {config.chat_url}")
+        console.print(f"[bold]Latency:[/bold] {latency}s")
+        console.print(f"[bold]Response:[/bold] {content[:200]}")
+    except Exception as exc:
+        console.print(f"[bold red]Connection failed:[/bold red] {exc}")
+        raise typer.Exit(code=1)
 
 
 if __name__ == "__main__":

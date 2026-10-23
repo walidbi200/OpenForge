@@ -1,0 +1,217 @@
+# OpenForge Curated Benchmark
+# Manually verified on 2026-07-26
+# Every issue below was checked against the GitHub API for:
+#   - state = "open"
+#   - NOT a pull_request
+#   - no merged PR linked in timeline
+#   - preferably bug label, preferably unassigned
+#   - small-to-medium scope suitable for automated planning + coding
+
+benchmarks:
+
+  # ─── sanic-org/sanic ──────────────────────────────────────────────────
+
+  - id: sanic-3176
+    repository: sanic-org/sanic
+    issue: "https://github.com/sanic-org/sanic/issues/3176"
+    verified_date: "2026-07-26"
+    title: "Incorrect Parameter name in Signals Documentation"
+    verified_open: true
+    labels:
+      - bug
+    assignee: null
+    requires_human: false
+    expected_files:
+      - guide/basics/signals.md
+      - docs/en/guide/basics/signals.md
+    expected_tests:
+      - none  # documentation fix only; no functional change
+    notes: >
+      Simple docs bug: the signals documentation uses `conditions` as a kwarg
+      but the actual API parameter name is `condition`. Verified open,
+      unassigned, no linked merged PR. Good for validating Planner's ability
+      to map docs bugs to the right markdown file.
+
+  - id: sanic-3129
+    repository: sanic-org/sanic
+    issue: "https://github.com/sanic-org/sanic/issues/3129"
+    verified_date: "2026-07-26"
+    title: "Python 3.14 deprecation warnings for asyncio.get_event_loop_policy still present in 25.12.0"
+    verified_open: true
+    labels:
+      - bug
+    assignee: null
+    requires_human: false
+    expected_files:
+      - sanic/server/loop.py
+    expected_tests:
+      - tests/test_loop.py
+    notes: >
+      Deprecation warning on Python 3.14. Two lines in loop.py reference
+      deprecated asyncio policy functions. Small footprint, deterministic fix.
+      Good test of minimal patch generation.
+
+  - id: sanic-3128
+    repository: sanic-org/sanic
+    issue: "https://github.com/sanic-org/sanic/issues/3128"
+    verified_date: "2026-07-26"
+    title: 'Test client fails with "Address already in use" on sequential requests in Docker (v25.12.0 regression)'
+    verified_open: true
+    labels:
+      - bug
+    assignee: null
+    requires_human: true
+    expected_files:
+      - sanic/server/socket.py
+      - sanic/testing.py
+    expected_tests:
+      - tests/test_testing.py
+    notes: >
+      Regression in socket reuse logic within Docker. The issue title describes
+      a specific environment (Docker) which makes full reproduction harder in
+      our sandbox. Marked requires_human because Planner may not capture Docker
+      network nuances. Good edge-case test.
+
+  - id: sanic-3159
+    repository: sanic-org/sanic
+    issue: "https://github.com/sanic-org/sanic/issues/3159"
+    verified_date: "2026-07-26"
+    title: "unused-coroutine mypy error when not using route handlers as a decorator"
+    verified_open: true
+    labels:
+      - bug
+    assignee: null
+    requires_human: false
+    expected_files:
+      - sanic/mixins/routes.py
+    expected_tests:
+      - tests/test_routes.py
+    notes: >
+      Mypy type-checking bug: using route handlers imperatively (not as a
+      decorator) produces a coroutine that is not immediately awaited. The fix
+      likely involves adding a `Coroutine` return-type overload or documenting
+      the imperative usage pattern. Small, self-contained.
+
+  # ─── python/cpython ───────────────────────────────────────────────────
+
+  - id: cpython-154719
+    repository: python/cpython
+    issue: "https://github.com/python/cpython/issues/154719"
+    verified_date: "2026-07-26"
+    title: "Interpolation.expression drops trailing whitespace despite documentation saying it includes any whitespace"
+    verified_open: true
+    labels:
+      - type-bug
+      - interpreter-core
+      - topic-parser
+    assignee: null
+    requires_human: false
+    expected_files:
+      - Lib/string/templatelib.py
+    expected_tests:
+      - Lib/test/test_string/test_templatelib.py
+    notes: >
+      Parser-level bug in t-string interpolation whitespace handling. The
+      reporter provides a clear minimal reproducer. CPython codebase is large
+      but the fix area is narrow (a single parser method). Good stress-test
+      for Planner against a non-trivial repo structure.
+
+  - id: cpython-154726
+    repository: python/cpython
+    issue: "https://github.com/python/cpython/issues/154726"
+    verified_date: "2026-07-26"
+    title: "`shutil.copyfile()` rejects device symlinks with `follow_symlinks=False`"
+    verified_open: true
+    labels:
+      - type-bug
+      - stdlib
+    assignee: null
+    requires_human: false
+    expected_files:
+      - Lib/shutil.py
+    expected_tests:
+      - Lib/test/test_shutil.py
+    notes: >
+      Regression in shutil.copyfile from a recent refactor (#142693). Symlink
+      to a device node is incorrectly checked before the `follow_symlinks`
+      guard. Clear reproducer, single-file fix. Ideal for validating patch
+      correctness against a core stdlib module.
+
+  - id: cpython-154730
+    repository: python/cpython
+    issue: "https://github.com/python/cpython/issues/154730"
+    verified_date: "2026-07-26"
+    title: "PyREPL: ESC key in isearch mode has ambiguous prefix delay"
+    verified_open: true
+    labels:
+      - type-bug
+    assignee: null
+    requires_human: false
+    expected_files:
+      - Lib/_pyrepl/reader.py
+      - Lib/_pyrepl/input.py
+    expected_tests:
+      - Lib/test/test_pyrepl/test_reader.py
+    notes: >
+      Terminal-input handling bug: bare ESC in isearch is treated as an escape
+      sequence prefix instead of immediately exiting search mode. Repro steps
+      are explicit. May require understanding pyrepl event queue internals.
+
+  # ─── pallets/click ────────────────────────────────────────────────────
+
+  - id: click-3571
+    repository: pallets/click
+    issue: "https://github.com/pallets/click/issues/3571"
+    verified_date: "2026-07-26"
+    title: "`click.progressbar` doesn't show full completion when using `show_pos=True`"
+    verified_open: true
+    labels:
+      - bug
+    assignee: null
+    requires_human: false
+    expected_files:
+      - src/click/termui.py
+    expected_tests:
+      - tests/test_termui.py
+    notes: >
+      UI-level bug in progress bar rendering. Likely an off-by-one in
+      percentage or position formatting. Classic small bug with clear user
+      expectations. Good for testing Coder's ability to keep formatting clean.
+
+  # ─── pallets/flask ────────────────────────────────────────────────────
+
+  # Note: flask currently has very few open bugs. We include one open issue
+  # for completeness, but the primary benchmark target set is above.
+  - id: flask-placeholder
+    repository: pallets/flask
+    issue: "https://github.com/pallets/flask/issues/TBD"
+    verified_date: "2026-07-26"
+    title: "(placeholder — no suitable open bug found during sweep)"
+    verified_open: false
+    labels: []
+    assignee: null
+    requires_human: false
+    expected_files: []
+    expected_tests: []
+    notes: >
+      During manual API sweep (2026-07-26) the Flask open-issues list
+      contained only docs/typing issues and feature requests. No clearly
+      reproducible, unassigned, open bug was found. This slot is reserved
+      for a future verified issue.
+
+metadata:
+  created: "2026-07-26"
+  verifier: "OpenForge automated validation script + manual API inspection"
+  criteria:
+    - issue must be OPEN (verified via GitHub REST API state field)
+    - must NOT be a PR (verified via absence of 'pull_request' key)
+    - must NOT have a merged fix already linked (verified via timeline scan)
+    - preferably bug label
+    - preferably reproducible (minimal reproducer or clear error description)
+    - preferably unassigned (no assignee)
+    - small-to-medium scope (single-module or two-module fixes preferred)
+  total_verified: 8
+  repositories_covered:
+    - sanic-org/sanic
+    - python/cpython
+    - pallets/click
