@@ -19,7 +19,7 @@ def test_code_blocks_requires_human_true(tmp_path: Path, monkeypatch):
     
     # Mock settings
     settings = Settings(
-        openrouter_api_key="sk-or-test-key",
+        agentrouter_api_key="test",
         runs_dir=runs_dir,
     )
     monkeypatch.setattr("openforge.cli.get_settings", lambda: settings)
@@ -71,7 +71,7 @@ def test_code_blocks_tampered_plan(tmp_path: Path, monkeypatch):
     run_dir.mkdir(parents=True)
     
     settings = Settings(
-        openrouter_api_key="sk-or-test-key",
+        agentrouter_api_key="test",
         runs_dir=runs_dir,
     )
     monkeypatch.setattr("openforge.cli.get_settings", lambda: settings)
@@ -106,7 +106,7 @@ def test_code_no_verify_bypasses_checksum(tmp_path: Path, monkeypatch):
     run_dir.mkdir(parents=True)
     
     settings = Settings(
-        openrouter_api_key="sk-or-test-key",
+        agentrouter_api_key="test",
         runs_dir=runs_dir,
     )
     monkeypatch.setattr("openforge.cli.get_settings", lambda: settings)

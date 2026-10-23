@@ -1,0 +1,58 @@
+[
+  {
+    "description": "open issue (bug label)",
+    "url": null,
+    "expected": "ALLOW",
+    "actual": "SKIPPED (no URL discovered)",
+    "detail": "discovery failed",
+    "pass": false
+  },
+  {
+    "description": "closed issue (completed)",
+    "url": "https://github.com/django/django/issues/1",
+    "expected": "REJECT",
+    "actual": "REJECT",
+    "detail": "Issue django/django#1 is not open \u2014 state='closed'.",
+    "pass": true
+  },
+  {
+    "description": "merged pull request",
+    "url": "https://github.com/pallets/flask/pull/6013",
+    "expected": "REJECT",
+    "actual": "REJECT",
+    "detail": "Issue pallets/flask#6013 is not open \u2014 state='closed'.",
+    "pass": true
+  },
+  {
+    "description": "issue closed by merged PR",
+    "url": "https://github.com/pallets/flask/issues/6092",
+    "expected": "REJECT",
+    "actual": "REJECT",
+    "detail": "Issue pallets/flask#6092 is not open \u2014 state='closed' (reason: not_planned).",
+    "pass": true
+  },
+  {
+    "description": "not planned issue",
+    "url": null,
+    "expected": "REJECT",
+    "actual": "SKIPPED (no URL discovered)",
+    "detail": "discovery failed",
+    "pass": false
+  },
+  {
+    "description": "duplicate issue (closed)",
+    "url": null,
+    "expected": "REJECT",
+    "actual": "SKIPPED (no URL discovered)",
+    "detail": "discovery failed",
+    "pass": false
+  },
+  {
+    "description": "unassigned open issue",
+    "url": "https://github.com/pallets/flask/issues/6093",
+    "expected": "ALLOW",
+    "actual": "ALLOW",
+    "detail": "state=open, title=IPv6 addresses parsed incorrectly because of `.partition(\":\")`?",
+    "pass": true
+  }
+]

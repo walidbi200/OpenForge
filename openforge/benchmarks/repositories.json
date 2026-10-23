@@ -1,0 +1,134 @@
+{
+  "repositories": [
+    {
+      "name": "Flask",
+      "url": "https://github.com/pallets/flask",
+      "expected": {
+        "language": "Python",
+        "framework": "Flask",
+        "package_manager": "uv",
+        "formatter": "ruff",
+        "linter": "ruff",
+        "test_command": "pytest",
+        "ci": "GitHub Actions"
+      }
+    },
+    {
+      "name": "Requests",
+      "url": "https://github.com/psf/requests",
+      "expected": {
+        "language": "Python",
+        "framework": "none",
+        "package_manager": "uv",
+        "formatter": "ruff",
+        "linter": "ruff",
+        "test_command": "pytest",
+        "ci": "GitHub Actions"
+      }
+    },
+    {
+      "name": "HTTPX",
+      "url": "https://github.com/encode/httpx",
+      "expected": {
+        "language": "Python",
+        "framework": "none",
+        "package_manager": "uv",
+        "formatter": "ruff",
+        "linter": "ruff",
+        "test_command": "pytest",
+        "ci": "GitHub Actions"
+      }
+    },
+    {
+      "name": "FastAPI",
+      "url": "https://github.com/fastapi/fastapi",
+      "expected": {
+        "language": "Python",
+        "framework": "FastAPI",
+        "package_manager": "uv",
+        "formatter": "ruff",
+        "linter": "ruff",
+        "test_command": "pytest",
+        "ci": "GitHub Actions"
+      }
+    },
+    {
+      "name": "Django",
+      "url": "https://github.com/django/django",
+      "expected": {
+        "language": "Python",
+        "framework": "Django",
+        "package_manager": "none",
+        "formatter": "black",
+        "linter": "flake8",
+        "test_command": "pytest",
+        "ci": "GitHub Actions"
+      }
+    },
+    {
+      "name": "Rich",
+      "url": "https://github.com/Textualize/rich",
+      "expected": {
+        "language": "Python",
+        "framework": "none",
+        "package_manager": "poetry",
+        "formatter": "black",
+        "linter": "mypy",
+        "test_command": "pytest",
+        "ci": "GitHub Actions"
+      }
+    },
+    {
+      "name": "Typer",
+      "url": "https://github.com/fastapi/typer",
+      "expected": {
+        "language": "Python",
+        "framework": "none",
+        "package_manager": "uv",
+        "formatter": "ruff",
+        "linter": "ruff",
+        "test_command": "pytest",
+        "ci": "GitHub Actions"
+      }
+    },
+    {
+      "name": "Click",
+      "url": "https://github.com/pallets/click",
+      "expected": {
+        "language": "Python",
+        "framework": "none",
+        "package_manager": "uv",
+        "formatter": "ruff",
+        "linter": "ruff",
+        "test_command": "pytest",
+        "ci": "GitHub Actions"
+      }
+    },
+    {
+      "name": "Black",
+      "url": "https://github.com/psf/black",
+      "expected": {
+        "language": "Python",
+        "framework": "none",
+        "package_manager": "uv",
+        "formatter": "black",
+        "linter": "ruff",
+        "test_command": "pytest",
+        "ci": "GitHub Actions"
+      }
+    },
+    {
+      "name": "Ruff",
+      "url": "https://github.com/astral-sh/ruff",
+      "expected": {
+        "language": "Rust",
+        "framework": "none",
+        "package_manager": "cargo",
+        "formatter": "cargo fmt",
+        "linter": "cargo clippy",
+        "test_command": "cargo test",
+        "ci": "GitHub Actions"
+      }
+    }
+  ]
+}

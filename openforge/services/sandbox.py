@@ -41,14 +41,22 @@ class DockerSandbox(SandboxRunner):
 
         # Install dependencies and run tests in a single container invocation
         # because --rm ephemeral containers do not persist state across runs.
+        # Each install is tracked individually so failures are reported instead
+        # of being silently swallowed with "|| true".
         combined_cmd = (
-            "(pip install -e . > /tmp/install.log 2>&1) || true; "
-            "(pip install -e '.[test]' >> /tmp/install.log 2>&1) || true; "
-            "(pip install -e '.[dev]' >> /tmp/install.log 2>&1) || true; "
-            "(pip install -r requirements.txt >> /tmp/install.log 2>&1) || true; "
-            "(pip install -r requirements-dev.txt >> /tmp/install.log 2>&1) || true; "
-            "(pip install pytest pytest-asyncio testfixtures mock factory-boy hypothesis >> /tmp/install.log 2>&1) || true; "
-            + " ".join(cmd)
+            "INSTALL_ERRORS=0; INSTALL_DIAGNOSTIC=''; "
+            "if ! pip install -e . >>/tmp/install.log 2>&1; then INSTALL_ERRORS=1; INSTALL_DIAGNOSTIC=\"${INSTALL_DIAGNOSTIC}\\nFAILED: pip install -e .\"; fi; "
+            "if ! pip install -e '.[test]' >>/tmp/install.log 2>&1; then INSTALL_ERRORS=1; INSTALL_DIAGNOSTIC=\"${INSTALL_DIAGNOSTIC}\\nFAILED: pip install -e .[test]\"; fi; "
+            "if ! pip install -e '.[dev]' >>/tmp/install.log 2>&1; then INSTALL_ERRORS=1; INSTALL_DIAGNOSTIC=\"${INSTALL_DIAGNOSTIC}\\nFAILED: pip install -e .[dev]\"; fi; "
+            "if [ -f requirements.txt ] && ! pip install -r requirements.txt >>/tmp/install.log 2>&1; then INSTALL_ERRORS=1; INSTALL_DIAGNOSTIC=\"${INSTALL_DIAGNOSTIC}\\nFAILED: pip install -r requirements.txt\"; fi; "
+            "if [ -f requirements-dev.txt ] && ! pip install -r requirements-dev.txt >>/tmp/install.log 2>&1; then INSTALL_ERRORS=1; INSTALL_DIAGNOSTIC=\"${INSTALL_DIAGNOSTIC}\\nFAILED: pip install -r requirements-dev.txt\"; fi; "
+            "if ! pip install pytest pytest-asyncio testfixtures mock factory-boy hypothesis >>/tmp/install.log 2>&1; then INSTALL_ERRORS=1; INSTALL_DIAGNOSTIC=\"${INSTALL_DIAGNOSTIC}\\nFAILED: pip install common test deps\"; fi; "
+            "if [ \"$INSTALL_ERRORS\" = \"1\" ]; then "
+            "  echo '=== DEPENDENCY INSTALLATION FAILED ===' >&2; "
+            "  echo -e \"$INSTALL_DIAGNOSTIC\" >&2; "
+            "  cat /tmp/install.log >&2; "
+            "fi; "
+            + 'exec "$@"'
         )
 
         docker_cmd = [
@@ -58,11 +66,12 @@ class DockerSandbox(SandboxRunner):
             "-v", f"{cwd.resolve()}:/repo:Z",
             "-w", "/repo",
             "openforge-python:3.11",
-            "bash", "-c", combined_cmd
+            "bash", "-c", combined_cmd, "bash", *cmd
         ]
 
         try:
-            return subprocess.run(docker_cmd, capture_output=True, text=True, timeout=300.0)
+            result = subprocess.run(docker_cmd, capture_output=True, text=True, timeout=300.0)
+            return result
         except subprocess.TimeoutExpired as e:
             logger.error("Sandbox test timed out after 300s.")
             # Return a fabricated CompletedProcess
@@ -74,11 +83,13 @@ class DockerSandbox(SandboxRunner):
             )
 
 def get_sandbox() -> SandboxRunner:
-    """Returns a DockerSandbox if docker is running, else LocalSandbox."""
+    """Return DockerSandbox, failing closed when Docker is unavailable."""
     try:
         res = subprocess.run(["docker", "info"], capture_output=True, check=False)
         if res.returncode == 0:
             return DockerSandbox()
     except FileNotFoundError:
         pass
-    return LocalSandbox()
+    raise RuntimeError(
+        "Docker is unavailable. Refusing to execute repository code on the host."
+    )

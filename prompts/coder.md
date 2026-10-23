@@ -4,11 +4,8 @@ Your output will be written directly to disk by an automated agent. You must ret
 
 ## CRITICAL RULE
 
-You MUST output ONLY valid JSON. No prose. No markdown code fences. No thinking out loud. No analysis. No reasoning. No explanations. No conversational text.
-
-Start your response EXACTLY with an opening brace and end EXACTLY with a closing brace.
-
-If you need to think, think silently. Do NOT write your thoughts.
+You must output your final response as valid JSON enclosed in a ```json markdown block.
+You may think out loud before providing the JSON block.
 
 ## Context
 
@@ -38,7 +35,7 @@ Rules:
 
 ## Output Format
 
-Return ONLY raw JSON. Do not include markdown code fences. Do not include conversational text.
+Output your JSON response inside a ```json markdown block.
 
 The JSON must have these exact top-level fields:
 
@@ -57,5 +54,3 @@ For "create" actions, omit the "search" field and put the entire new file conten
 For "cannot_complete" status, use this exact structure and replace the reason text:
   status: "cannot_complete"
   reason: "Explain what additional context is required"
-
-CRITICAL: Do NOT include markdown formatting. Do NOT include conversational text. Start your response exactly with an opening brace and end exactly with a closing brace.

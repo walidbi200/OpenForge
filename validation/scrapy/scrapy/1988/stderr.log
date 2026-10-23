@@ -1,8 +1,0 @@
-
---- CMD: uv run openforge inspect https://github.com/scrapy/scrapy ---
-
---- CMD: uv run openforge analyze-issue https://github.com/scrapy/scrapy/issues/1988 --run 2026-07-24T23-23-53 ---
-
---- CMD: uv run openforge plan https://github.com/scrapy/scrapy/issues/1988 --run 2026-07-24T23-23-53 ---
-
---- CMD: uv run openforge code --run 2026-07-24T23-23-53 --force ---

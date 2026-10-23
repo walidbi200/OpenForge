@@ -1,9 +1,10 @@
 FROM python:3.11-slim
 RUN pip install --no-cache-dir \
-    pytest \
+    "pytest>=8,<9" \
     pytest-asyncio \
+    pytest-timeout \
     testfixtures \
     mock \
     factory-boy \
     hypothesis \
-    httpx2
+    httpx

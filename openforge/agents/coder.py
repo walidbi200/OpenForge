@@ -29,7 +29,7 @@ import httpx
 from openforge.config import Settings
 from openforge.models import ImplementationPlan, RepositoryContext
 from openforge.services.llm import call_llm
-from openforge.services.sandbox import get_sandbox
+from openforge.services.sandbox import get_sandbox, DockerSandbox
 from openforge.utils import extract_json, repair_json
 
 logger = logging.getLogger(__name__)
@@ -69,7 +69,16 @@ class TestResult:
 
     @property
     def passed(self) -> bool:
-        return self.returncode == 0
+        return self.returncode == 0 and not self.inconclusive
+
+    @property
+    def inconclusive(self) -> bool:
+        """Return True when pytest collected zero tests (exit code 5) or no tests ran."""
+        if self.returncode == 5:
+            return True
+        # Fallback: parse pytest output for "0 selected" / no-tests-collected.
+        combined = ((self.stdout or "") + (self.stderr or "")).lower()
+        return "0 selected" in combined or "no tests ran" in combined or "0 tests collected" in combined
 
 
 @dataclass
@@ -96,6 +105,7 @@ class CodeResult:
                     "command": t.command,
                     "returncode": t.returncode,
                     "passed": t.passed,
+                    "inconclusive": t.inconclusive,
                     "stdout": t.stdout[:4000],
                     "stderr": t.stderr[:2000],
                 }
@@ -156,10 +166,10 @@ class CodingAgent:
     def __init__(self, settings: Settings) -> None:
         if not settings.llm_enabled:
             raise CoderError(
-                "OPENROUTER_API_KEY is not set. "
+                "The selected LLM provider API key is not set. "
                 "The CodingAgent requires an LLM. "
                 "Export the key and retry:\n\n"
-                "  export OPENROUTER_API_KEY=sk-or-..."
+                "  export AGENTROUTER_API_KEY=..."
             )
         self._settings = settings
         self._prompt_template = self._load_prompt()
@@ -223,7 +233,13 @@ class CodingAgent:
         edits = []
         diagnostics = {}
         returned_paths = []
-        
+
+        def _save_raw(text: str, label: str) -> None:
+            if not run_dir:
+                return
+            dest = run_dir / f"coder_{label}.txt"
+            dest.write_text(text, encoding="utf-8")
+
         for attempt in range(3):
             try:
                 raw = call_llm(
@@ -231,47 +247,45 @@ class CodingAgent:
                     self._settings,
                     timeout=timeout,
                     metrics_callback=_record_metrics,
+                    raw_callback=lambda text, a=attempt: _save_raw(text, f"attempt{a}_main"),
                     max_tokens=16000,
                 )
             except RuntimeError as exc:
                 raise CoderError(str(exc)) from exc
             logger.info("LLM returned %d bytes", len(raw))
 
-            # Quick guard: if the response doesn't even start with '{',
-            # it's almost certainly prose. Skip straight to repair+retry.
-            stripped = raw.strip()
-            if not stripped.startswith("{"):
+            # 4. Parse LLM response.
+            logger.info("Parsing LLM response...")
+            try:
+                edits, diagnostics = self._parse_response(raw, plan.files_to_modify, current_files)
+            except CoderError as exc:
                 logger.warning(
-                    "Response does not start with '{'; treating as prose. "
-                    "Attempt %d/3.",
+                    "Response parsing failed. Attempt %d/3. Error: %s",
                     attempt + 1,
+                    exc,
                 )
                 diagnostics = {
-                    "status": "prose_detected",
-                    "reason": "LLM returned conversational text instead of JSON.",
+                    "status": "parse_failed",
+                    "reason": str(exc),
                     "hallucinated_paths": [],
-                    "parser_warnings": ["Response did not start with '{'"],
+                    "parser_warnings": [str(exc)],
                     "rejected_edits": [],
                     "skipped_files": [],
                 }
                 if attempt == 2:
-                    logger.error("CodingAgent failed after 3 attempts (prose detected).")
+                    logger.error("CodingAgent failed after 3 attempts (parse failed).")
                     return CodeResult(
                         branch_name=branch,
-                        summary="Failed: LLM returned prose instead of JSON after 3 attempts.",
+                        summary="Failed: LLM returned unparseable output after 3 attempts.",
                     )
                 # Inject a stricter JSON reminder for the next attempt
                 prompt += (
-                    "\n\nCRITICAL: Your previous response was prose, not valid JSON. "
+                    "\n\nCRITICAL: Your previous response was not valid JSON. "
                     "You MUST respond with ONLY a raw JSON object starting with '{' "
                     "and ending with '}'. No explanations. No thinking. No markdown. "
                     "ONLY JSON."
                 )
                 continue
-
-            # 4. Parse LLM response.
-            logger.info("Parsing LLM response...")
-            edits, diagnostics = self._parse_response(raw, plan.files_to_modify, current_files)
             logger.info("Parsed %d edits", len(edits))
 
             # 5. Output Validation
@@ -384,8 +398,13 @@ class CodingAgent:
                 f"Only return the fixed JSON block as described before."
             )
             try:
-                repair_raw = call_llm(prompt, self._settings, timeout=timeout)
-                repair_edits = self._parse_response(repair_raw, plan.files_to_modify, current_files)
+                repair_raw = call_llm(
+                    prompt,
+                    self._settings,
+                    timeout=timeout,
+                    raw_callback=lambda text, a=attempt: _save_raw(text, f"attempt{a}_repair"),
+                )
+                repair_edits, _ = self._parse_response(repair_raw, plan.files_to_modify, current_files)
                 for edit in repair_edits:
                     target = _safe_join(repo_path, edit.path)
                     target.write_text(edit.new_content, encoding="utf-8")
@@ -542,19 +561,32 @@ class CodingAgent:
             "skipped_files": [],
         }
 
-        files_raw = payload.get("files", [])
+        files_raw = payload.get("files")
+        if files_raw is None and diagnostics["status"] == "success":
+            diagnostics["parser_warnings"].append("Missing 'files' array in JSON response.")
+            files_raw = []
+        elif files_raw is None:
+            files_raw = []
+            
         if not isinstance(files_raw, list):
             diagnostics["parser_warnings"].append(f"Expected 'files' to be a list; got: {type(files_raw)}")
             return [], diagnostics
 
         edits_by_path: dict[str, str] = {}
         
+        def clean_markdown(val: str) -> str:
+            if not isinstance(val, str):
+                return val
+            val = re.sub(r"^\s*```[a-zA-Z]*\n", "", val)
+            val = re.sub(r"\n\s*```\s*$", "", val)
+            return val
+        
         for entry in files_raw:
             path = entry.get("path", "")
             action = entry.get("action", "modify")
-            search = entry.get("search", "")
-            replace = entry.get("replace", "")
-            new_content_raw = entry.get("new_content", "")
+            search = clean_markdown(entry.get("search", ""))
+            replace = clean_markdown(entry.get("replace", ""))
+            new_content_raw = clean_markdown(entry.get("new_content", ""))
             
             if not path:
                 diagnostics["parser_warnings"].append("Skipping entry with empty path")
@@ -562,7 +594,7 @@ class CodingAgent:
                 
             if path not in allowed_paths:
                 diagnostics["hallucinated_paths"].append(path)
-                diagnostics["parser_warnings"].append(f"Path {path!r} not in allowed paths.")
+                diagnostics["parser_warnings"].append(f"Path {path!r} not in allowed paths. Allowed paths are: {allowed_paths}")
                 continue
                 
             if action == "create":
@@ -625,9 +657,13 @@ class CodingAgent:
             text=True,
         )
         if status.stdout.strip():
-            logger.warning("Working tree not clean. Resetting and cleaning...")
-            subprocess.run(["git", "reset", "--hard"], cwd=cwd, capture_output=True)
-            subprocess.run(["git", "clean", "-fd"], cwd=cwd, capture_output=True)
+            changed_files = "\n".join(
+                f"  {line}" for line in status.stdout.splitlines() if line.strip()
+            )
+            raise CoderError(
+                "Refusing to create a coding branch because the repository has "
+                f"uncommitted changes:\n{changed_files}"
+            )
 
         logger.debug("Creating/checking out branch: %s", branch_name)
         result = subprocess.run(
@@ -743,33 +779,46 @@ class CodingAgent:
                     err_text = proc.stderr or proc.stdout
                     match = re.search(r"(?:ModuleNotFoundError|ImportError):\s*([^\n]+)", err_text)
                     if match:
-                        pkg_manager = repo_context.package_manager or "pip"
-                        if pkg_manager == "uv":
-                            install_cmd = "uv sync"
-                        elif pkg_manager == "poetry":
-                            install_cmd = "poetry install"
-                        elif pkg_manager == "pnpm":
-                            install_cmd = "pnpm install"
-                        elif pkg_manager == "yarn":
-                            install_cmd = "yarn install"
-                        elif pkg_manager == "npm":
-                            install_cmd = "npm install"
+                        # Host-side recovery is impossible for DockerSandbox because
+                        # each run() creates a brand-new ephemeral container.
+                        if isinstance(sandbox, DockerSandbox):
+                            diagnostic = (
+                                f"\n\nDependency missing inside sandbox: {match.group(1)}\n"
+                                "Host installation skipped: DockerSandbox creates a new ephemeral container for each run, "
+                                "so host-side recovery cannot possibly repair the test environment.\n"
+                                "Ensure the Docker image (openforge-python:3.11) already contains required dependencies, "
+                                "or verify that earlier sandbox dependency installation succeeded."
+                            )
+                            proc.stderr += diagnostic
+                            logger.warning("DockerSandbox dependency missing: %s. Host-side recovery skipped.", match.group(1))
                         else:
-                            install_cmd = "pip install -e ."
-                        
-                        logger.info("Missing dependency detected: %s. Attempting to install via %s", match.group(1), install_cmd)
-                        install_proc = subprocess.run(
-                            shlex.split(install_cmd),
-                            cwd=cwd,
-                            capture_output=True,
-                            text=True
-                        )
-                        if install_proc.returncode == 0:
-                            logger.info("Dependencies installed successfully. Retrying test...")
-                            proc = sandbox.run(args, cwd=cwd)
-                        else:
-                            logger.warning("Failed to auto-install dependencies. Test will remain failed.")
-                            proc.stderr += f"\n\nMissing dependency: {match.group(1)}\nAuto-install failed ({install_cmd}):\n{install_proc.stderr}\n"
+                            pkg_manager = repo_context.package_manager or "pip"
+                            if pkg_manager == "uv":
+                                install_cmd = "uv sync"
+                            elif pkg_manager == "poetry":
+                                install_cmd = "poetry install"
+                            elif pkg_manager == "pnpm":
+                                install_cmd = "pnpm install"
+                            elif pkg_manager == "yarn":
+                                install_cmd = "yarn install"
+                            elif pkg_manager == "npm":
+                                install_cmd = "npm install"
+                            else:
+                                install_cmd = "pip install -e ."
+                            
+                            logger.info("Missing dependency detected: %s. Attempting to install via %s", match.group(1), install_cmd)
+                            install_proc = subprocess.run(
+                                shlex.split(install_cmd),
+                                cwd=cwd,
+                                capture_output=True,
+                                text=True
+                            )
+                            if install_proc.returncode == 0:
+                                logger.info("Dependencies installed successfully. Retrying test...")
+                                proc = sandbox.run(args, cwd=cwd)
+                            else:
+                                logger.warning("Failed to auto-install dependencies. Test will remain failed.")
+                                proc.stderr += f"\n\nMissing dependency: {match.group(1)}\nAuto-install failed ({install_cmd}):\n{install_proc.stderr}\n"
 
                 results.append(
                     TestResult(
@@ -801,4 +850,6 @@ class CodingAgent:
                         stderr=f"COMMAND NOT FOUND: {exc}. Is the test runner installed in this environment?",
                     )
                 )
+            except RuntimeError as exc:
+                raise CoderError(f"Sandbox unavailable: {exc}") from exc
         return results

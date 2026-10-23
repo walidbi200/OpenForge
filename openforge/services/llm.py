@@ -6,7 +6,8 @@ backend is active.
 
 Provider selection via environment variables::
 
-    LLM_PROVIDER=openrouter  (default)
+    LLM_PROVIDER=agentrouter  (default)
+    LLM_PROVIDER=openrouter
     LLM_FALLBACK=dahl
 """
 
@@ -14,6 +15,8 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import subprocess
 import time
 import typing
 from dataclasses import dataclass, field
@@ -29,6 +32,10 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 _PROVIDERS: dict[str, dict[str, str]] = {
+    "agentrouter": {
+        "base_url": "https://agentrouter.org/v1",
+        "default_model": "gpt-5.6-sol",
+    },
     "openrouter": {
         "base_url": "https://openrouter.ai/api/v1",
         "default_model": "anthropic/claude-sonnet-4.6",
@@ -59,38 +66,29 @@ class LLMProviderConfig:
     model: str
 
     @classmethod
-    def from_provider_name(cls, provider: str, settings: Settings) -> "LLMProviderConfig":
-        """Build config for a specific provider name."""
+    def from_settings(cls, settings: Settings) -> "LLMProviderConfig":
+        """Resolve the selected OpenAI-compatible provider."""
+        provider = settings.llm_provider.lower()
         if provider not in _PROVIDERS:
-            logger.warning("Unknown provider %r, falling back to 'openrouter'", provider)
-            provider = "openrouter"
-
-        defaults = _PROVIDERS[provider]
-        base_url = (settings.api_base or defaults["base_url"]).rstrip("/")
-
-        if provider == "openrouter":
-            provider_key: str | None = settings.openrouter_api_key
-        elif provider == "dahl":
-            provider_key = settings.dahl_api_key
-        else:
-            provider_key = None
-
-        api_key = settings.api_key or provider_key or None
-
-        if provider == "openrouter":
-            provider_model = settings.openrouter_model
-        elif provider == "dahl":
-            provider_model = settings.dahl_model
-        else:
-            provider_model = defaults["default_model"]
-
-        model = settings.model or provider_model
-
+            raise ValueError(
+                f"Unknown LLM provider {provider!r}. "
+                f"Expected one of: {', '.join(sorted(_PROVIDERS))}."
+            )
+        provider_keys = {
+            "agentrouter": settings.agentrouter_api_key,
+            "openrouter": settings.openrouter_api_key,
+            "dahl": settings.dahl_api_key,
+        }
+        provider_models = {
+            "agentrouter": settings.agentrouter_model,
+            "openrouter": settings.openrouter_model,
+            "dahl": settings.dahl_model,
+        }
         return cls(
             provider=provider,
-            base_url=base_url,
-            api_key=api_key,
-            model=model,
+            base_url=(settings.api_base or _PROVIDERS[provider]["base_url"]).rstrip("/"),
+            api_key=settings.api_key or provider_keys[provider],
+            model=settings.model or provider_models[provider],
         )
 
     @property
@@ -103,150 +101,146 @@ class LLMProviderConfig:
 
 
 class RetryManager:
-    """Centralized retry controller managing backoff, budgets, and provider failover."""
-    def __init__(self, settings: Settings, timeout: float):
+    """Centralized retry controller managing backoff and budgets."""
+
+    def __init__(self, settings: Settings, timeout: float, raw_callback: typing.Callable[[str], None] | None = None):
         self.settings = settings
         self.timeout = timeout
-        
-        # Primary provider
-        self.primary_config = LLMProviderConfig.from_provider_name(settings.llm_provider, settings)
-        
-        # Fallback provider
-        self.fallback_config = None
-        if settings.llm_fallback:
-            self.fallback_config = LLMProviderConfig.from_provider_name(settings.llm_fallback, settings)
-            if not self.fallback_config.enabled:
-                self.fallback_config = None
-                
-        self.current_config = self.primary_config
+        self.raw_callback = raw_callback
+        # Dahl is the sole provider.
+        self.current_config = LLMProviderConfig.from_settings(settings)
         self.retry_count = 0
-        self.failover_count = 0
         self.start_time = time.time()
         self.timeout_status = False
         self.termination_reason = "success"
 
     def execute(self, messages: list[dict], extra: dict, metrics_callback: typing.Callable[[dict], None] | None) -> str:
-        if not self.primary_config.enabled:
-            raise RuntimeError(f"No API key configured for provider '{self.primary_config.provider}'.")
+        if not self.current_config.enabled:
+            raise RuntimeError(
+                f"No API key is configured for {self.current_config.provider}."
+            )
+
+        if self.current_config.provider == "agentrouter":
+            return self._execute_agentrouter(messages, metrics_callback)
 
         prompt_tokens = sum(len(m.get("content", "")) // 4 for m in messages)
         last_exc: Exception | None = None
-        
-        for failover_attempt in range(2): # Try primary, then fallback
-            for attempt in range(_MAX_RETRIES):
-                try:
-                    payload = {
-                        "model": self.current_config.model,
-                        "messages": messages,
-                        "stream": True,
-                        **extra,
-                    }
-                    headers = {
-                        "Authorization": f"Bearer {self.current_config.api_key}",
-                        "Content-Type": "application/json",
-                    }
-                    
-                    time_to_first_token = 0.0
-                    generated_text = ""
-                    request_id = None
-                    
-                    with httpx.Client(timeout=self.timeout) as client:
-                        with client.stream("POST", self.current_config.chat_url, headers=headers, json=payload) as response:
-                            if response.status_code in _RETRYABLE_STATUS or response.status_code in (401, 403, 429):
-                                response.read()
-                                if response.status_code in _RETRYABLE_STATUS and attempt < _MAX_RETRIES - 1:
-                                    self._backoff(attempt, response.status_code)
-                                    continue
-                                else:
-                                    # Need to failover
-                                    raise httpx.HTTPStatusError(f"HTTP {response.status_code}", request=response.request, response=response)
-                            
-                            response.raise_for_status()
-                            
-                            for line in response.iter_lines():
-                                if not line: continue
-                                if line.startswith("data: "):
-                                    data_str = line[6:]
-                                    if data_str.strip() == "[DONE]":
-                                        break
-                                    try:
-                                        chunk = json.loads(data_str)
-                                        if not request_id and "id" in chunk:
-                                            request_id = chunk["id"]
-                                        if not time_to_first_token:
-                                            time_to_first_token = time.time() - self.start_time
-                                        delta = chunk["choices"][0].get("delta", {})
-                                        if "content" in delta:
-                                            generated_text += delta["content"]
-                                    except (json.JSONDecodeError, KeyError, IndexError):
-                                        pass
-                                        
-                    completion_tokens = len(generated_text) // 4
-                    generation_duration = time.time() - self.start_time - time_to_first_token
-                    
-                    if metrics_callback:
-                        metrics_callback({
-                            "provider_used": self.current_config.provider,
-                            "fallback_provider": self.fallback_config.provider if self.fallback_config else None,
-                            "model": self.current_config.model,
-                            "request_id": request_id,
-                            "prompt_tokens": prompt_tokens,
-                            "completion_tokens": completion_tokens,
-                            "total_tokens": prompt_tokens + completion_tokens,
-                            "request_duration": round(time.time() - self.start_time, 2),
-                            "retry_count": self.retry_count,
-                            "failover_count": self.failover_count,
-                            "timeout_status": self.timeout_status,
-                            "streaming": True,
-                            "time_to_first_token": round(time_to_first_token, 2),
-                            "generation_duration": round(generation_duration, 2),
-                            "completion_rate": round(completion_tokens / max(generation_duration, 0.1), 2),
-                            "termination_reason": self.termination_reason
-                        })
-                    return generated_text.strip()
 
-                except httpx.HTTPStatusError as exc:
-                    code = exc.response.status_code
-                    last_exc = exc
-                    # Don't failover on 400 (Bad Request) - likely a prompt issue
-                    if code == 400:
-                        raise RuntimeError(f"[{self.current_config.provider}] HTTP {code}: {exc.response.text[:400]}") from exc
-                    
-                    # Log and break retry loop to trigger failover
-                    logger.warning("[%s] HTTP %d. Triggering failover if available.", self.current_config.provider, code)
-                    break
-                    
-                except httpx.RequestError as exc:
-                    if isinstance(exc, httpx.TimeoutException):
-                        self.timeout_status = True
-                    last_exc = exc
-                    if attempt < _MAX_RETRIES - 1:
-                        self._backoff(attempt, "Network Error")
-                        continue
-                    break # Trigger failover
-            
-            # If we reached here, we exhausted retries or hit a hard failover trigger
-            if failover_attempt == 0 and self.fallback_config:
-                logger.warning("Failing over from %s to %s", self.current_config.provider, self.fallback_config.provider)
-                self.current_config = self.fallback_config
-                self.failover_count += 1
-                self.retry_count = 0
-                continue
-            else:
+        for attempt in range(_MAX_RETRIES):
+            try:
+                payload = {
+                    "model": self.current_config.model,
+                    "messages": messages,
+                    "stream": True,
+                    **extra,
+                }
+                headers = {
+                    "Authorization": f"Bearer {self.current_config.api_key}",
+                    "Content-Type": "application/json",
+                }
+                if self.current_config.provider == "agentrouter":
+                    headers.update(
+                        {
+                            "User-Agent": "claude-code/0.2.29",
+                            "anthropic-version": "2023-06-01",
+                            "x-app-name": "claude-code",
+                        }
+                    )
+
+                time_to_first_token = 0.0
+                generated_text = ""
+                request_id = None
+
+                with httpx.Client(timeout=self.timeout) as client:
+                    with client.stream("POST", self.current_config.chat_url, headers=headers, json=payload) as response:
+                        if response.status_code in _RETRYABLE_STATUS or response.status_code in (401, 403, 429):
+                            response.read()
+                            if response.status_code in _RETRYABLE_STATUS and attempt < _MAX_RETRIES - 1:
+                                self._backoff(attempt, response.status_code)
+                                continue
+                            else:
+                                raise httpx.HTTPStatusError(f"HTTP {response.status_code}", request=response.request, response=response)
+
+                        response.raise_for_status()
+
+                        for line in response.iter_lines():
+                            if not line: continue
+                            if line.startswith("data: "):
+                                data_str = line[6:]
+                                if data_str.strip() == "[DONE]":
+                                    break
+                                try:
+                                    chunk = json.loads(data_str)
+                                    if not request_id and "id" in chunk:
+                                        request_id = chunk["id"]
+                                    if not time_to_first_token:
+                                        time_to_first_token = time.time() - self.start_time
+                                    delta = chunk["choices"][0].get("delta", {})
+                                    if "content" in delta:
+                                        generated_text += delta["content"]
+                                except (json.JSONDecodeError, KeyError, IndexError):
+                                    pass
+
+                completion_tokens = len(generated_text) // 4
+                generation_duration = time.time() - self.start_time - time_to_first_token
+
+                if metrics_callback:
+                    metrics_callback({
+                        "provider_used": self.current_config.provider,
+                        "model": self.current_config.model,
+                        "request_id": request_id,
+                        "prompt_tokens": prompt_tokens,
+                        "completion_tokens": completion_tokens,
+                        "total_tokens": prompt_tokens + completion_tokens,
+                        "request_duration": round(time.time() - self.start_time, 2),
+                        "retry_count": self.retry_count,
+                        "timeout_status": self.timeout_status,
+                        "streaming": True,
+                        "time_to_first_token": round(time_to_first_token, 2),
+                        "generation_duration": round(generation_duration, 2),
+                        "completion_rate": round(completion_tokens / max(generation_duration, 0.1), 2),
+                        "termination_reason": self.termination_reason
+                    })
+                if self.raw_callback:
+                    self.raw_callback(generated_text)
+                return generated_text.strip()
+
+            except httpx.HTTPStatusError as exc:
+                code = exc.response.status_code
+                last_exc = exc
+                # 400 is a client-side prompt issue; don't retry.
+                if code == 400:
+                    raise RuntimeError(f"[{self.current_config.provider}] HTTP {code}: {exc.response.text[:400]}") from exc
+
+                logger.warning(
+                    "[%s] HTTP %d. Retrying if budget allows.",
+                    self.current_config.provider,
+                    code,
+                )
+                if attempt < _MAX_RETRIES - 1:
+                    self._backoff(attempt, code)
+                    continue
                 break
-                
+
+            except httpx.RequestError as exc:
+                if isinstance(exc, httpx.TimeoutException):
+                    self.timeout_status = True
+                last_exc = exc
+                if attempt < _MAX_RETRIES - 1:
+                    self._backoff(attempt, "Network Error")
+                    continue
+                break
+
         self.termination_reason = "error"
         if metrics_callback:
             metrics_callback({
                 "provider_used": self.current_config.provider,
-                "fallback_provider": self.fallback_config.provider if self.fallback_config else None,
                 "model": self.current_config.model,
                 "prompt_tokens": prompt_tokens,
                 "completion_tokens": 0,
                 "total_tokens": prompt_tokens,
                 "request_duration": round(time.time() - self.start_time, 2),
                 "retry_count": self.retry_count,
-                "failover_count": self.failover_count,
                 "timeout_status": self.timeout_status,
                 "streaming": True,
                 "time_to_first_token": 0.0,
@@ -254,7 +248,158 @@ class RetryManager:
                 "completion_rate": 0.0,
                 "termination_reason": self.termination_reason
             })
-        raise RuntimeError(f"[{self.current_config.provider}] All retry/failover attempts exhausted. Last Error: {last_exc}") from last_exc
+        raise RuntimeError(
+            f"[{self.current_config.provider}] All retry attempts exhausted. "
+            f"Last Error: {last_exc}"
+        ) from last_exc
+
+    def _execute_agentrouter(
+        self,
+        messages: list[dict],
+        metrics_callback: typing.Callable[[dict], None] | None,
+    ) -> str:
+        """Call AgentRouter through its supported OpenCode client transport."""
+        prompt = "\n\n".join(m.get("content", "") for m in messages)
+        prompt_tokens = len(prompt) // 4
+        config = {
+            "provider": {
+                "agentrouter": {
+                    "name": "AgentRouter",
+                    "package": "@ai-sdk/openai-compatible",
+                    "options": {
+                        "baseURL": self.current_config.base_url,
+                        "apiKey": "{env:AGENTROUTER_API_KEY}",
+                        "headers": {
+                            "User-Agent": "claude-code/0.2.29",
+                            "anthropic-version": "2023-06-01",
+                            "x-app-name": "claude-code",
+                        },
+                    },
+                    "models": {
+                        self.current_config.model: {
+                            "name": self.current_config.model,
+                        }
+                    },
+                }
+            },
+            "permission": {"*": "deny"},
+        }
+        env = os.environ.copy()
+        env.update(
+            {
+                "AGENTROUTER_API_KEY": typing.cast(str, self.current_config.api_key),
+                "OPENCODE_CONFIG_CONTENT": json.dumps(config),
+                "OPENCODE_DISABLE_PROJECT_CONFIG": "true",
+            }
+        )
+        last_error = "unknown error"
+
+        for attempt in range(_MAX_RETRIES):
+            attempt_start = time.time()
+            try:
+                result = subprocess.run(
+                    [
+                        "opencode",
+                        "run",
+                        "--pure",
+                        "--model",
+                        f"agentrouter/{self.current_config.model}",
+                        "--format",
+                        "json",
+                    ],
+                    input=prompt,
+                    capture_output=True,
+                    text=True,
+                    timeout=self.timeout,
+                    env=env,
+                )
+            except FileNotFoundError as exc:
+                raise RuntimeError(
+                    "AgentRouter requires the `opencode` executable on PATH."
+                ) from exc
+            except subprocess.TimeoutExpired as exc:
+                self.timeout_status = True
+                last_error = f"OpenCode timed out after {self.timeout}s"
+                if attempt < _MAX_RETRIES - 1:
+                    self._backoff(attempt, "Timeout")
+                    continue
+                break
+
+            text_parts: list[str] = []
+            usage: dict = {}
+            event_error = ""
+            for line in result.stdout.splitlines():
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if event.get("type") == "text":
+                    text_parts.append(event.get("part", {}).get("text", ""))
+                elif event.get("type") == "step_finish":
+                    usage = event.get("part", {}).get("tokens", {})
+                elif event.get("type") == "error":
+                    event_error = str(event.get("error") or event)
+
+            generated_text = "".join(text_parts).strip()
+            if result.returncode == 0 and generated_text:
+                completion_tokens = int(usage.get("output", len(generated_text) // 4))
+                actual_prompt_tokens = int(usage.get("input", prompt_tokens))
+                duration = time.time() - attempt_start
+                if metrics_callback:
+                    metrics_callback(
+                        {
+                            "provider_used": self.current_config.provider,
+                            "model": self.current_config.model,
+                            "prompt_tokens": actual_prompt_tokens,
+                            "completion_tokens": completion_tokens,
+                            "total_tokens": int(
+                                usage.get(
+                                    "total", actual_prompt_tokens + completion_tokens
+                                )
+                            ),
+                            "request_duration": round(duration, 2),
+                            "retry_count": self.retry_count,
+                            "timeout_status": self.timeout_status,
+                            "streaming": True,
+                            "time_to_first_token": 0.0,
+                            "generation_duration": round(duration, 2),
+                            "completion_rate": round(
+                                completion_tokens / max(duration, 0.1), 2
+                            ),
+                            "termination_reason": "success",
+                        }
+                    )
+                if self.raw_callback:
+                    self.raw_callback(generated_text)
+                return generated_text
+
+            last_error = event_error or result.stderr.strip() or "empty response"
+            if attempt < _MAX_RETRIES - 1:
+                self._backoff(attempt, f"OpenCode exit {result.returncode}")
+
+        self.termination_reason = "error"
+        if metrics_callback:
+            metrics_callback(
+                {
+                    "provider_used": self.current_config.provider,
+                    "model": self.current_config.model,
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": 0,
+                    "total_tokens": prompt_tokens,
+                    "request_duration": round(time.time() - self.start_time, 2),
+                    "retry_count": self.retry_count,
+                    "timeout_status": self.timeout_status,
+                    "streaming": True,
+                    "time_to_first_token": 0.0,
+                    "generation_duration": 0.0,
+                    "completion_rate": 0.0,
+                    "termination_reason": self.termination_reason,
+                }
+            )
+        raise RuntimeError(
+            f"[agentrouter] OpenCode transport failed after {_MAX_RETRIES} "
+            f"attempts: {last_error[:400]}"
+        )
 
     def _backoff(self, attempt: int, reason: str | int):
         wait = _RETRY_BACKOFF[attempt]
@@ -275,8 +420,9 @@ def call_llm(
     settings: Settings,
     timeout: float = 60.0,
     metrics_callback: typing.Callable[[dict], None] | None = None,
+    raw_callback: typing.Callable[[str], None] | None = None,
     **kwargs,
 ) -> str:
-    manager = RetryManager(settings, timeout)
+    manager = RetryManager(settings, timeout, raw_callback=raw_callback)
     messages = [{"role": "user", "content": prompt}]
     return manager.execute(messages, kwargs, metrics_callback)

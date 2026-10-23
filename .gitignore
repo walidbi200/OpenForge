@@ -1,5 +1,11 @@
 # Secrets
 .env
+opencode.json
+opencod-kimie.json
+
+# Runtime artifacts from coder JSON repair failures
+failed_coder_raw.json
+failed_coder_repaired.json
 
 # Cloned repos and generated repo.json files live here — never commit someone
 # else's repository into this one.
@@ -24,3 +30,4 @@ build/
 .vscode/
 .idea/
 .DS_Store
+validation/*/

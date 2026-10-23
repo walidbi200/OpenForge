@@ -35,10 +35,11 @@ from openforge.models import (
     compute_sha256,
     verify_artifact_file,
 )
-from openforge.services.github import GitHubService
+from openforge.services.github import GitHubService, IssueNotActionableError
 from openforge.services.issue_extractor import IssueExtractor
 from openforge.services.openrouter import summarize_conventions
 from openforge.services.repository_analyzer import RepositoryAnalyzer
+from openforge.services.llm import LLMProviderConfig
 
 app = typer.Typer(
     name="openforge",
@@ -304,7 +305,7 @@ def analyze_issue(
     with console.status(f"[bold cyan]Fetching issue #{issue_number}..."):
         try:
             raw_issue = github.fetch_issue(owner, repo_name, issue_number)
-        except (PermissionError, RuntimeError) as exc:
+        except (IssueNotActionableError, PermissionError, RuntimeError) as exc:
             console.print(f"[bold red]Error:[/bold red] {exc}")
             raise typer.Exit(code=1)
 
@@ -402,9 +403,10 @@ def plan(
     # --- Fail fast on missing API key before doing any network work ----------
     if not settings.llm_enabled:
         console.print(
-            "[bold red]Error:[/bold red] OPENROUTER_API_KEY is not set.\n"
-            "The Planner requires an LLM. Export the key and retry:\n\n"
-            "  export OPENROUTER_API_KEY=sk-or-..."
+            "[bold red]Error:[/bold red] AGENTROUTER_API_KEY is not set.\n"
+            "OpenForge is configured to use AgentRouter.\n"
+            "Please export:\n\n"
+            "  export AGENTROUTER_API_KEY=..."
         )
         raise typer.Exit(code=1)
 
@@ -519,7 +521,7 @@ def plan(
         with console.status(f"[bold cyan]Fetching issue #{issue_number}..."):
             try:
                 raw_issue = github.fetch_issue(owner, repo_name, issue_number)
-            except (PermissionError, RuntimeError) as exc:
+            except (IssueNotActionableError, PermissionError, RuntimeError) as exc:
                 console.print(f"[bold red]Error:[/bold red] {exc}")
                 raise typer.Exit(code=1)
 
@@ -633,9 +635,10 @@ def code(
 
     if not settings.llm_enabled:
         console.print(
-            "[bold red]Error:[/bold red] OPENROUTER_API_KEY is not set.\n"
-            "The CodingAgent requires an LLM. Export the key and retry:\n\n"
-            "  export OPENROUTER_API_KEY=sk-or-..."
+            "[bold red]Error:[/bold red] AGENTROUTER_API_KEY is not set.\n"
+            "OpenForge is configured to use AgentRouter.\n"
+            "Please export:\n\n"
+            "  export AGENTROUTER_API_KEY=..."
         )
         raise typer.Exit(code=1)
 
@@ -800,7 +803,7 @@ def _print_context(context) -> None:
         console.print(context.conventions_summary)
     elif not context.conventions_summary:
         console.print(
-            "\n[dim]No conventions summary (set OPENROUTER_API_KEY to enable, "
+            "\n[dim]No conventions summary (set AGENTROUTER_API_KEY to enable, "
             "or pass --no-llm to silence this).[/dim]"
         )
 
@@ -821,7 +824,12 @@ def _print_code_result(result) -> None:
         console.print("[dim](no changes detected by git diff)[/dim]")
 
     for tr in result.test_results:
-        status = "[bold green]PASSED[/bold green]" if tr.passed else "[bold red]FAILED[/bold red]"
+        if tr.inconclusive:
+            status = "[bold yellow]INCONCLUSIVE[/bold yellow]"
+        elif tr.passed:
+            status = "[bold green]PASSED[/bold green]"
+        else:
+            status = "[bold red]FAILED[/bold red]"
         console.print(f"\n[bold]Tests:[/bold] {tr.command}  →  {status} (exit {tr.returncode})")
         if tr.stdout:
             # Wrap in Text() to prevent Rich from interpreting stdout markup tags
@@ -983,6 +991,39 @@ def main() -> None:
         print("Error: OpenForge requires Python 3.11+", file=sys.stderr)
         sys.exit(1)
     app()
+
+
+@app.command()
+def health() -> None:
+    """Lightweight connectivity check for the configured provider."""
+    settings = get_settings()
+    configure_logging(settings.log_level)
+
+    config = LLMProviderConfig.from_settings(settings)
+    if not config.enabled:
+        console.print(
+            "[bold red]Error:[/bold red] AGENTROUTER_API_KEY is not configured.\n"
+            "OpenForge is configured to use AgentRouter.\n"
+            "Please export:\n\n"
+            "  export AGENTROUTER_API_KEY=..."
+        )
+        raise typer.Exit(code=1)
+
+    import time as _time
+    from openforge.services.llm import call_llm
+
+    start = _time.time()
+    try:
+        content = call_llm("Reply with exactly OK.", settings, timeout=30)
+        latency = round(_time.time() - start, 2)
+        console.print(f"[bold]Provider:[/bold] {config.provider}")
+        console.print(f"[bold]Model:[/bold] {config.model}")
+        console.print(f"[bold]Endpoint:[/bold] {config.chat_url}")
+        console.print(f"[bold]Latency:[/bold] {latency}s")
+        console.print(f"[bold]Response:[/bold] {content[:200]}")
+    except Exception as exc:
+        console.print(f"[bold red]Connection failed:[/bold red] {exc}")
+        raise typer.Exit(code=1)
 
 
 if __name__ == "__main__":

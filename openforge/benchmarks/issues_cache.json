@@ -1,0 +1,103 @@
+{
+  "issues": [
+    {
+      "repository": "astral-sh/ruff",
+      "issue_number": 26450,
+      "issue_url": "https://github.com/astral-sh/ruff/issues/26450",
+      "title": "[Infinite loop] TID254 when an import statement has conflicting laziness requirements",
+      "first_seen": "2026-07-30",
+      "last_checked": "2026-07-30",
+      "status": "selected"
+    },
+    {
+      "repository": "astral-sh/ruff",
+      "issue_number": 23570,
+      "issue_url": "https://github.com/astral-sh/ruff/issues/23570",
+      "title": "`[pydoclint]` DOC501: False positive for exception created via classmethod",
+      "first_seen": "2026-07-30",
+      "last_checked": "2026-07-30",
+      "status": "candidate"
+    },
+    {
+      "repository": "astral-sh/ruff",
+      "issue_number": 27022,
+      "issue_url": "https://github.com/astral-sh/ruff/issues/27022",
+      "title": "`B006` preview fix changes multiline string literal contents",
+      "first_seen": "2026-07-30",
+      "last_checked": "2026-07-30",
+      "status": "candidate"
+    },
+    {
+      "repository": "astral-sh/ruff",
+      "issue_number": 18143,
+      "issue_url": "https://github.com/astral-sh/ruff/issues/18143",
+      "title": "PLC2701 treats `os._exit` as private, unlike SLF001",
+      "first_seen": "2026-07-30",
+      "last_checked": "2026-07-30",
+      "status": "candidate"
+    },
+    {
+      "repository": "psf/requests",
+      "issue_number": 4965,
+      "issue_url": "https://github.com/psf/requests/issues/4965",
+      "title": "Accessing response.content twice forgets read error",
+      "first_seen": "2026-07-30",
+      "last_checked": "2026-07-30",
+      "status": "candidate"
+    },
+    {
+      "repository": "pallets/click",
+      "issue_number": 3571,
+      "issue_url": "https://github.com/pallets/click/issues/3571",
+      "title": "`click.progressbar` doesn't show full completion when using `show_pos=True` combined with `update_min_steps`",
+      "first_seen": "2026-07-30",
+      "last_checked": "2026-07-30",
+      "status": "rejected"
+    },
+    {
+      "repository": "Textualize/rich",
+      "issue_number": 3299,
+      "issue_url": "https://github.com/Textualize/rich/issues/3299",
+      "title": "[BUG] Segment._split_cells doesn't handle non-unit characters well",
+      "first_seen": "2026-07-30",
+      "last_checked": "2026-07-30",
+      "status": "already_has_pr"
+    },
+    {
+      "repository": "astral-sh/ruff",
+      "issue_number": 27024,
+      "issue_url": "https://github.com/astral-sh/ruff/issues/27024",
+      "title": "`RUF055` safe fix changes behavior for non-string inputs",
+      "first_seen": "2026-07-30",
+      "last_checked": "2026-07-30",
+      "status": "assigned"
+    },
+    {
+      "repository": "astral-sh/ruff",
+      "issue_number": 27026,
+      "issue_url": "https://github.com/astral-sh/ruff/issues/27026",
+      "title": "`RUF038` changes runtime expressions and drops subscripted `Literal` members",
+      "first_seen": "2026-07-30",
+      "last_checked": "2026-07-30",
+      "status": "assigned"
+    },
+    {
+      "repository": "astral-sh/ruff",
+      "issue_number": 27027,
+      "issue_url": "https://github.com/astral-sh/ruff/issues/27027",
+      "title": "`RUF066` misses properties due to nested lambdas and enclosing Protocol classes",
+      "first_seen": "2026-07-30",
+      "last_checked": "2026-07-30",
+      "status": "assigned"
+    },
+    {
+      "repository": "psf/requests",
+      "issue_number": 6102,
+      "issue_url": "https://github.com/psf/requests/issues/6102",
+      "title": "HTTPDigestAuth fails on non-latin credentials",
+      "first_seen": "2026-07-30",
+      "last_checked": "2026-07-30",
+      "status": "already_has_pr"
+    }
+  ]
+}

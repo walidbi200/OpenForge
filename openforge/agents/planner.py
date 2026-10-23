@@ -23,6 +23,7 @@ import httpx
 from openforge.config import Settings
 from openforge.models import ImplementationPlan, IssueFacts, RepositoryContext
 from openforge.services.llm import call_llm
+from openforge.services.symbol_resolver import extract_candidate_symbols, resolve_symbol_to_file
 from openforge.utils import extract_json
 
 logger = logging.getLogger(__name__)
@@ -91,10 +92,10 @@ class PlannerAgent:
     def __init__(self, settings: Settings) -> None:
         if not settings.llm_enabled:
             raise PlannerError(
-                "OPENROUTER_API_KEY is not set. "
+                "The selected LLM provider API key is not set. "
                 "The Planner requires an LLM. "
                 "Export the key and retry:\n\n"
-                "  export OPENROUTER_API_KEY=sk-or-..."
+                "  export AGENTROUTER_API_KEY=..."
             )
         self._settings = settings
         self._prompt_template = self._load_prompt()
@@ -142,8 +143,14 @@ class PlannerAgent:
                 all_metrics.append(metrics)
                 metrics_path.write_text(json.dumps(all_metrics, indent=2))
 
+        def _save_raw(text: str) -> None:
+            if not run_dir:
+                return
+            dest = run_dir / "planner_attempt0.txt"
+            dest.write_text(text, encoding="utf-8")
+
         try:
-            raw_content = call_llm(prompt, self._settings, timeout=timeout, metrics_callback=_record_metrics)
+            raw_content = call_llm(prompt, self._settings, timeout=timeout, metrics_callback=_record_metrics, raw_callback=_save_raw)
         except RuntimeError as exc:
             raise PlannerError(str(exc)) from exc
         plan = self._parse_plan(raw_content)
@@ -181,6 +188,90 @@ class PlannerAgent:
     # File reading (deterministic — no LLM)
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _resolve_mentioned_file(base: Path, rel_path: str) -> Path | None:
+        """Resolve a file mentioned in the issue to an actual path in the repository.
+
+        Strategy:
+        1. Try the literal path first.
+        2. If missing, search by basename under ``base``.
+        3. Exactly one match → use it; log the fallback.
+        4. Multiple matches → score deterministically and pick the best,
+           logging ambiguity when scores tie.
+        5. No match → return ``None`` (caller skips silently).
+        """
+        literal = base / rel_path
+        if literal.exists():
+            return literal
+
+        basename = Path(rel_path).name
+        candidates = list(base.rglob(basename))
+
+        if not candidates:
+            return None
+
+        if len(candidates) == 1:
+            best = candidates[0]
+            logger.info(
+                "Literal path:\n\n%s\n\n↓\n\nResolved by basename search\n\n%s",
+                rel_path,
+                best.relative_to(base).as_posix(),
+            )
+            return best
+
+        # Multiple candidates — score deterministically.
+        mention_parts = Path(rel_path).parts
+        b_lower = basename.lower()
+
+        def _score(candidate: Path) -> tuple:
+            rel = candidate.relative_to(base)
+            parts = rel.parts
+            path_str = str(rel).lower()
+
+            # 1. Longest common suffix of path components.
+            common_len = 0
+            for i in range(1, min(len(parts), len(mention_parts)) + 1):
+                if parts[-i] == mention_parts[-i]:
+                    common_len += 1
+                else:
+                    break
+            score = common_len * 10
+
+            # 2. Directory preference based on basename hint.
+            if "test" in b_lower:
+                if "tests/" in path_str or "/tests/" in path_str or "test/" in path_str or "/test/" in path_str:
+                    score += 5
+            if b_lower.endswith((".md", ".rst")) or "doc" in b_lower:
+                if "docs/" in path_str or "/docs/" in path_str or "doc/" in path_str or "/doc/" in path_str:
+                    score += 5
+            if "src/" in path_str:
+                score += 2
+
+            # Prefer shorter paths, then alphabetical.
+            return (-score, len(path_str), path_str)
+
+        candidates.sort(key=_score)
+        best = candidates[0]
+        best_score = _score(best)
+        second_score = _score(candidates[1])
+
+        if best_score[0] == second_score[0]:
+            logger.warning(
+                "Ambiguous basename '%s' → multiple matches with equal score: %s. "
+                "Choosing shortest/deterministic: %s",
+                basename,
+                [str(c.relative_to(base)) for c in candidates],
+                best.relative_to(base).as_posix(),
+            )
+        else:
+            logger.info(
+                "Literal path:\n\n%s\n\n↓\n\nResolved by basename search\n\n%s",
+                rel_path,
+                best.relative_to(base).as_posix(),
+            )
+
+        return best
+
     def _load_prompt(self) -> str:
         try:
             return _PLANNER_PROMPT_PATH.read_text()
@@ -199,10 +290,15 @@ class PlannerAgent:
 
         Rules (all deterministic):
         - No source_path → return empty list silently.
-        - Path doesn't exist locally → skip silently.
-        - File > _MAX_FILE_BYTES → skip with a note (no truncation).
+        - Path doesn't exist locally → try basename fallback via
+          _resolve_mentioned_file; if still unresolved, skip silently.
+        - File > _MAX_FILE_BYTES → skeletonize/truncate with a note.
         - Not valid UTF-8 → skip silently (binary file, not useful).
         - Cap at first _MAX_INLINE_FILES files that *exist and are in-range*.
+        - **Symbol fallback**: after processing literal mentions, if room
+          remains, deterministically search the repo for symbols appearing in
+          the issue body/code blocks that have NOT already been resolved to a
+          file.  Each newly discovered file is read and added to the prompt.
         """
         if repo is None or not repo.source_path:
             return []
@@ -210,71 +306,111 @@ class PlannerAgent:
         base = Path(repo.source_path)
         snippets: list[_FileSnippet] = []
         included = 0
+        already_resolved: set[str] = set()
 
-        for rel_path in facts.mentioned_files:
-            if included >= _MAX_INLINE_FILES:
-                break
-
-            abs_path = base / rel_path
-
-            if not abs_path.exists():
-                logger.debug("Mentioned file not found on disk, skipping: %s", rel_path)
-                continue
-
+        def _read_and_add(abs_path: Path, *, symbol_fallback: bool = False) -> None:
+            nonlocal included
+            resolved_rel = abs_path.relative_to(base).as_posix()
+            if resolved_rel in already_resolved:
+                return
             size = abs_path.stat().st_size
             try:
                 content = abs_path.read_text(encoding="utf-8")
             except (UnicodeDecodeError, OSError):
-                logger.debug("Could not read mentioned file (binary/unreadable), skipping: %s", rel_path)
-                continue
+                return
 
             if size > _MAX_FILE_BYTES:
                 if abs_path.suffix == ".py":
                     try:
                         import ast
+
                         tree = ast.parse(content)
-                        
+
                         class Skeletonizer(ast.NodeTransformer):
                             def visit_FunctionDef(self, node):
                                 docstring = ast.get_docstring(node)
                                 body = []
                                 if docstring:
-                                    body.append(ast.Expr(value=ast.Constant(value=docstring)))
-                                body.append(ast.Expr(value=ast.Constant(value="... (body omitted for size) ...")))
+                                    body.append(
+                                        ast.Expr(value=ast.Constant(value=docstring))
+                                    )
+                                body.append(
+                                    ast.Expr(
+                                        value=ast.Constant(
+                                            value="... (body omitted for size) ..."
+                                        )
+                                    )
+                                )
                                 node.body = body
                                 return node
-                                
+
                             def visit_AsyncFunctionDef(self, node):
                                 return self.visit_FunctionDef(node)
-                                
+
                             def visit_ClassDef(self, node):
                                 self.generic_visit(node)
                                 return node
-                                
+
                         tree = Skeletonizer().visit(tree)
                         content = ast.unparse(tree)
-                        
+
                         if len(content.encode("utf-8")) > _MAX_FILE_BYTES:
-                            content = content[:_MAX_FILE_BYTES] + "\n... (truncated for size) ..."
+                            content = (
+                                content[:_MAX_FILE_BYTES]
+                                + "\n... (truncated for size) ..."
+                            )
                     except SyntaxError:
-                        content = content[:_MAX_FILE_BYTES] + "\n... (truncated for size) ..."
+                        content = (
+                            content[:_MAX_FILE_BYTES]
+                            + "\n... (truncated for size) ..."
+                        )
                 else:
                     content = content[:_MAX_FILE_BYTES] + "\n... (truncated for size) ..."
-                    
+
                 snippets.append(
                     _FileSnippet(
-                        path=rel_path,
+                        path=resolved_rel,
                         content=content,
                         skip_reason=f"too large to include fully ({size:,} bytes) - skeletonized/truncated",
                     )
                 )
                 included += 1
-                logger.debug("Included mentioned file in prompt (%d bytes, skeletonized): %s", size, rel_path)
-                continue
+                already_resolved.add(resolved_rel)
+                return
 
-            snippets.append(_FileSnippet(path=rel_path, content=content))
+            snippets.append(_FileSnippet(path=resolved_rel, content=content))
             included += 1
-            logger.debug("Included mentioned file in prompt (%d bytes): %s", size, rel_path)
+            already_resolved.add(resolved_rel)
+
+        # ------------------------------------------------------------------
+        # Phase 1: literal / basename resolution from mentioned_files
+        # ------------------------------------------------------------------
+        for rel_path in facts.mentioned_files:
+            if included >= _MAX_INLINE_FILES:
+                break
+
+            abs_path = self._resolve_mentioned_file(base, rel_path)
+            if abs_path is None:
+                logger.debug("Mentioned file not found on disk, skipping: %s", rel_path)
+                continue
+            _read_and_add(abs_path)
+
+        # ------------------------------------------------------------------
+        # Phase 2: deterministic symbol resolution for un-grounded symbols
+        # Only runs when we still have room and the issue body contains
+        # candidate symbols we haven't already resolved to a file.
+        # ------------------------------------------------------------------
+        if included < _MAX_INLINE_FILES:
+            body = facts.body or ""
+            code_blocks = [cb.content for cb in facts.code_blocks]
+            candidate_symbols = extract_candidate_symbols(body, code_blocks)
+            for symbol in candidate_symbols:
+                if included >= _MAX_INLINE_FILES:
+                    break
+                resolved = resolve_symbol_to_file(base, symbol)
+                if resolved is None:
+                    continue
+                _read_and_add(resolved, symbol_fallback=True)
 
         return snippets
 
@@ -365,13 +501,5 @@ class PlannerAgent:
                 f"LLM JSON does not match ImplementationPlan schema: {exc}\n"
                 f"Payload: {json.dumps(payload, indent=2)[:500]}"
             ) from exc
-
-        # Deterministic override: non-empty risks → requires_human must be True.
-        if _risks_are_substantive(plan.risks) and not plan.requires_human:
-            logger.debug(
-                "requires_human override fired: risks=%r — forcing requires_human=True",
-                plan.risks,
-            )
-            plan = plan.model_copy(update={"requires_human": True})
 
         return plan

@@ -1,8 +1,0 @@
-
---- CMD: uv run openforge inspect https://github.com/encode/httpx ---
-
---- CMD: uv run openforge analyze-issue https://github.com/encode/httpx/issues/1613 --run 2026-07-24T23-27-22 ---
-
---- CMD: uv run openforge plan https://github.com/encode/httpx/issues/1613 --run 2026-07-24T23-27-22 ---
-
---- CMD: uv run openforge code --run 2026-07-24T23-27-22 --force ---
